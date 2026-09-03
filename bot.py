@@ -22,16 +22,20 @@ POST_INTERVAL = 10      # seconds (use 360 for production)
 MAX_POSTS_PER_RUN = 5
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
-# Candidate models to try first (in order).
-# Put the known working one first to avoid repeated failures.
-CANDIDATE_MODELS = [
-    "qwen/qwen3.6-27b",
-    "llama-3.3-70b-versatile",
-    "meta-llama/llama-4-scout-17b-16e-instruct",
+# Known non-reasoning models to try first
+PREFERRED_MODELS = [
+    "llama-3.1-8b-instant",
+    "openai/gpt-oss-20b",
 ]
 
-# Cache for dynamically discovered model
-_discovered_model = None
+# Fallback if preferred models fail (reasoning or others)
+FALLBACK_MODELS = [
+    "qwen/qwen3.6-27b",
+    "qwen/qwen3.8-27b",
+]
+
+# File to cache the last working model
+MODEL_CACHE_FILE = "last_working_model.txt"
 
 # ================= KEYWORD FILTER =================
 KEYWORDS = [
@@ -70,88 +74,108 @@ def get_groq_models():
 def extract_translation(raw_output):
     """Remove any thinking block and return only the final translation."""
     if not raw_output:
-        return raw_output
+        return ""
     # If there is a closing think tag, take text after it
     if '</think>' in raw_output:
         raw_output = raw_output.split('</think>')[-1].strip()
-    # Also remove any leading <think> block even if not properly closed
-    # (in case the model forgot the closing tag)
+    # Also remove any leading <think> block (in case of malformed output)
     raw_output = re.sub(r'^<think>.*?(?=<think>|$)', '', raw_output, flags=re.DOTALL).strip()
     return raw_output
 
-def translate_to_persian(text):
-    """Translate English text to Persian, trying multiple models automatically."""
-    if not GROQ_API_KEY:
-        return "[NO TRANSLATION - ADD GROQ KEY] " + text
+def load_cached_model():
+    """Load the last successful model ID from file."""
+    if os.path.exists(MODEL_CACHE_FILE):
+        with open(MODEL_CACHE_FILE, 'r') as f:
+            return f.read().strip()
+    return None
 
-    global _discovered_model
+def save_cached_model(model_id):
+    """Save the successful model ID to file."""
+    with open(MODEL_CACHE_FILE, 'w') as f:
+        f.write(model_id)
 
-    models_to_try = CANDIDATE_MODELS.copy()
-    if _discovered_model and _discovered_model not in models_to_try:
-        models_to_try.insert(0, _discovered_model)
-
+def try_translate_with_model(text, model):
+    """Attempt translation with a specific model. Return cleaned translation or None."""
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
-
-    for model in models_to_try:
-        data = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": "You are a professional financial translator. Translate the following financial news text to Persian. Do not include any reasoning, thinking, or analysis. Output only the final translation. If you need to think, do it silently and output only the translated text."},
-                {"role": "user", "content": text}
-            ],
-            "max_tokens": 1500,   # Increased to allow thinking block + translation
-            "temperature": 0.3
-        }
-        try:
-            resp = requests.post(url, headers=headers, json=data, timeout=30)  # Increased timeout
-            print(f"Trying model {model} -> status {resp.status_code}")
-            if resp.status_code == 200:
-                raw = resp.json()['choices'][0]['message']['content'].strip()
-                cleaned = extract_translation(raw)
-                if cleaned and cleaned != raw:  # if extraction changed something
-                    _discovered_model = model
-                    return cleaned
-                else:
-                    # If no change, maybe the model didn't include thinking; return raw
-                    _discovered_model = model
-                    return cleaned
-            else:
-                print(f"Model {model} failed: {resp.text[:200]}")
-                continue
-        except Exception as e:
-            print(f"Model {model} exception: {e}")
-            continue
-
-    # If all candidates fail, try dynamic discovery
-    print("All candidate models failed. Fetching available models...")
-    available = get_groq_models()
-    for model in available:
-        data = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": "You are a professional financial translator. Translate the following financial news text to Persian. Do not include any reasoning, thinking, or analysis. Output only the final translation. If you need to think, do it silently and output only the translated text."},
-                {"role": "user", "content": text}
-            ],
-            "max_tokens": 1500,
-            "temperature": 0.3
-        }
-        try:
-            resp = requests.post(url, headers=headers, json=data, timeout=30)
-            print(f"Trying dynamically discovered model {model} -> status {resp.status_code}")
-            if resp.status_code == 200:
-                raw = resp.json()['choices'][0]['message']['content'].strip()
-                cleaned = extract_translation(raw)
-                _discovered_model = model
+    data = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "You are a professional financial translator. Translate the following financial news text to Persian. Output only the translation."},
+            {"role": "user", "content": text}
+        ],
+        "max_tokens": 8000,   # High enough for reasoning models
+        "temperature": 0.3
+    }
+    try:
+        resp = requests.post(url, headers=headers, json=data, timeout=30)
+        print(f"  Trying model {model} -> status {resp.status_code}")
+        if resp.status_code == 200:
+            raw = resp.json()['choices'][0]['message']['content'].strip()
+            cleaned = extract_translation(raw)
+            if cleaned and len(cleaned) > 5:
                 return cleaned
-        except Exception as e:
-            print(f"Dynamic model {model} exception: {e}")
-            continue
+            else:
+                print(f"  Model {model} returned empty translation.")
+                return None
+        else:
+            print(f"  Model {model} failed: {resp.text[:200]}")
+            return None
+    except Exception as e:
+        print(f"  Model {model} exception: {e}")
+        return None
 
-    return "[TRANSLATION FAILED] " + text
+def translate_to_persian(text):
+    """Translate text to Persian, automatically selecting the best available model."""
+    if not GROQ_API_KEY:
+        return text  # fallback to original English
+
+    # 1. Try cached model first
+    cached_model = load_cached_model()
+    if cached_model:
+        print(f"Trying cached model: {cached_model}")
+        result = try_translate_with_model(text, cached_model)
+        if result:
+            return result
+        else:
+            print("Cached model failed, removing cache.")
+            if os.path.exists(MODEL_CACHE_FILE):
+                os.remove(MODEL_CACHE_FILE)
+
+    # 2. Try preferred non-reasoning models
+    for model in PREFERRED_MODELS:
+        result = try_translate_with_model(text, model)
+        if result:
+            save_cached_model(model)
+            return result
+
+    # 3. Try fallback models (may include reasoning)
+    for model in FALLBACK_MODELS:
+        result = try_translate_with_model(text, model)
+        if result:
+            save_cached_model(model)
+            return result
+
+    # 4. Dynamic discovery: fetch all active models and try them
+    print("All known models failed. Fetching active models...")
+    active_models = get_groq_models()
+    # Sort models: prefer those without "qwen" or "reasoning" in name
+    def is_preferred(m):
+        lower = m.lower()
+        return 'qwen' not in lower and 'reason' not in lower
+    sorted_models = sorted(active_models, key=lambda m: not is_preferred(m))
+
+    for model in sorted_models:
+        result = try_translate_with_model(text, model)
+        if result:
+            save_cached_model(model)
+            return result
+
+    # If everything fails, return original English
+    return text
 
 def score_sentiment(text):
     text_lower = text.lower()
@@ -174,7 +198,7 @@ def sentiment_label(score):
 
 def format_message(article):
     title_en = article['title']
-    summary_en = article['summary'][:300]
+    summary_en = article['summary'][:200]
     persian_title = translate_to_persian(title_en)
     persian_summary = translate_to_persian(summary_en)
     score = score_sentiment(title_en + ' ' + summary_en)
