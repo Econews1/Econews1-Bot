@@ -22,11 +22,12 @@ POST_INTERVAL = 10      # seconds (use 360 for production)
 MAX_POSTS_PER_RUN = 5
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
-# Candidate models to try first (in order)
+# Candidate models to try first (in order).
+# Put the known working one first to avoid repeated failures.
 CANDIDATE_MODELS = [
-    "llama-3.3-70b-versatile",   # may or may not be available
-    "meta-llama/llama-4-scout-17b-16e-instruct",  # another possible model
-    "qwen/qwen3.6-27b"            # known to work, but may output thinking
+    "qwen/qwen3.6-27b",
+    "llama-3.3-70b-versatile",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
 ]
 
 # Cache for dynamically discovered model
@@ -73,8 +74,9 @@ def extract_translation(raw_output):
     # If there is a closing think tag, take text after it
     if '</think>' in raw_output:
         raw_output = raw_output.split('</think>')[-1].strip()
-    # Also remove any leading <think> just in case
-    raw_output = re.sub(r'^<think>.*?</think>', '', raw_output, flags=re.DOTALL).strip()
+    # Also remove any leading <think> block even if not properly closed
+    # (in case the model forgot the closing tag)
+    raw_output = re.sub(r'^<think>.*?(?=<think>|$)', '', raw_output, flags=re.DOTALL).strip()
     return raw_output
 
 def translate_to_persian(text):
@@ -98,20 +100,25 @@ def translate_to_persian(text):
         data = {
             "model": model,
             "messages": [
-                {"role": "system", "content": "You are a professional translator. Translate the following financial news text to Persian. Do not include any reasoning or thinking. Output only the final translation."},
+                {"role": "system", "content": "You are a professional financial translator. Translate the following financial news text to Persian. Do not include any reasoning, thinking, or analysis. Output only the final translation. If you need to think, do it silently and output only the translated text."},
                 {"role": "user", "content": text}
             ],
-            "max_tokens": 300,
+            "max_tokens": 1500,   # Increased to allow thinking block + translation
             "temperature": 0.3
         }
         try:
-            resp = requests.post(url, headers=headers, json=data, timeout=10)
+            resp = requests.post(url, headers=headers, json=data, timeout=30)  # Increased timeout
             print(f"Trying model {model} -> status {resp.status_code}")
             if resp.status_code == 200:
                 raw = resp.json()['choices'][0]['message']['content'].strip()
                 cleaned = extract_translation(raw)
-                _discovered_model = model
-                return cleaned
+                if cleaned and cleaned != raw:  # if extraction changed something
+                    _discovered_model = model
+                    return cleaned
+                else:
+                    # If no change, maybe the model didn't include thinking; return raw
+                    _discovered_model = model
+                    return cleaned
             else:
                 print(f"Model {model} failed: {resp.text[:200]}")
                 continue
@@ -126,14 +133,14 @@ def translate_to_persian(text):
         data = {
             "model": model,
             "messages": [
-                {"role": "system", "content": "You are a professional translator. Translate the following financial news text to Persian. Do not include any reasoning or thinking. Output only the final translation."},
+                {"role": "system", "content": "You are a professional financial translator. Translate the following financial news text to Persian. Do not include any reasoning, thinking, or analysis. Output only the final translation. If you need to think, do it silently and output only the translated text."},
                 {"role": "user", "content": text}
             ],
-            "max_tokens": 300,
+            "max_tokens": 1500,
             "temperature": 0.3
         }
         try:
-            resp = requests.post(url, headers=headers, json=data, timeout=10)
+            resp = requests.post(url, headers=headers, json=data, timeout=30)
             print(f"Trying dynamically discovered model {model} -> status {resp.status_code}")
             if resp.status_code == 200:
                 raw = resp.json()['choices'][0]['message']['content'].strip()
