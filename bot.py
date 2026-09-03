@@ -43,9 +43,12 @@ def translate_to_persian(text):
     """Translate via Groq API; fallback to a simple placeholder if no key."""
     if not GROQ_API_KEY:
         return "[NO TRANSLATION - ADD GROQ KEY] " + text
+
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}",
-               "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
     data = {
         "model": "llama-3.1-8b-instant",
         "messages": [
@@ -57,11 +60,19 @@ def translate_to_persian(text):
     }
     try:
         resp = requests.post(url, headers=headers, json=data, timeout=10)
+
+        # Debug: print status and response body (first 500 chars)
+        print(f"Groq API status: {resp.status_code}")
+        print(f"Groq API response (first 500 chars): {resp.text[:500]}")
+
         if resp.status_code == 200:
             return resp.json()['choices'][0]['message']['content'].strip()
         else:
+            print(f"Groq API Error: {resp.status_code}")
+            print("Response text:", resp.text)
             return f"[TRANSLATION ERROR {resp.status_code}] " + text
     except Exception as e:
+        print(f"Translation failed with exception: {e}")
         return f"[TRANSLATION FAILED] " + text
 
 def score_sentiment(text):
