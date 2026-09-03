@@ -22,6 +22,16 @@ POST_INTERVAL = 10      # seconds (use 360 for production)
 MAX_POSTS_PER_RUN = 5
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
+# Candidate models to try first (in order)
+CANDIDATE_MODELS = [
+    "llama-3.3-70b-versatile",
+    "llama3-8b-8192",          # likely decommissioned, but kept as fallback
+    "mixtral-8x7b-32768"
+]
+
+# Cache for dynamically discovered model
+_discovered_model = None
+
 # ================= KEYWORD FILTER =================
 KEYWORDS = [
     'gold', 'xau', 'dollar', 'dxy', 'fed', 'rate', 'inflation',
@@ -39,41 +49,120 @@ BEARISH = ['rate hike', 'strong dollar', 'risk appetite', 'higher yields',
 def clean_html(text):
     return re.sub('<.*?>', '', text)
 
+def get_groq_models():
+    """Fetch list of available models from Groq API."""
+    url = "https://api.groq.com/openai/v1/models"
+    headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            models = []
+            for m in data.get('data', []):
+                if m.get('active', False):
+                    models.append(m['id'])
+            return models
+        else:
+            print(f"Failed to fetch models: {resp.status_code} {resp.text[:200]}")
+            return []
+    except Exception as e:
+        print(f"Error fetching models: {e}")
+        return []
+
+def get_translation_model():
+    """Return a working model ID, trying candidates first then falling back to dynamic discovery."""
+    global _discovered_model
+    # First check if we already found a model earlier in this run
+    if _discovered_model:
+        return _discovered_model
+
+    # Try candidate models one by one in a quick test (can reuse translation function later)
+    # But we need to test them in actual translation; we'll handle that in translate_to_persian.
+    # For now, we just return the first candidate; the translation loop will try others if it fails.
+    for model in CANDIDATE_MODELS:
+        # We'll do a minimal test: just attempt a trivial translation and check status.
+        # To avoid extra API calls, we could directly attempt the real translation and see if it fails.
+        # Here we'll just return the first candidate; the translate function will iterate through candidates on failure.
+        return model
+    # If all candidates are bad (shouldn't happen since we return first), we do dynamic discovery.
+    models = get_groq_models()
+    if models:
+        # Prefer models containing "llama" or "mixtral"
+        preferred = [m for m in models if 'llama' in m or 'mixtral' in m]
+        if preferred:
+            _discovered_model = preferred[0]
+        else:
+            _discovered_model = models[0]
+        return _discovered_model
+    return None
+
 def translate_to_persian(text):
-    """Translate via Groq API; fallback to a simple placeholder if no key."""
+    """Translate English text to Persian, trying multiple models automatically."""
     if not GROQ_API_KEY:
         return "[NO TRANSLATION - ADD GROQ KEY] " + text
+
+    global _discovered_model
+
+    # List of models to try, in order
+    models_to_try = CANDIDATE_MODELS.copy()
+    if _discovered_model and _discovered_model not in models_to_try:
+        models_to_try.insert(0, _discovered_model)
 
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
-    data = {
-        "model": "llama3-8b-8192",   # Changed model name
-        "messages": [
-            {"role": "system", "content": "Translate this financial news text to Persian. Output only translation."},
-            {"role": "user", "content": text}
-        ],
-        "max_tokens": 300,
-        "temperature": 0.3
-    }
-    try:
-        resp = requests.post(url, headers=headers, json=data, timeout=10)
 
-        # Debug output
-        print(f"Groq API status: {resp.status_code}")
-        print(f"Groq API response (first 500 chars): {resp.text[:500]}")
+    for model in models_to_try:
+        data = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": "Translate this financial news text to Persian. Output only translation."},
+                {"role": "user", "content": text}
+            ],
+            "max_tokens": 300,
+            "temperature": 0.3
+        }
+        try:
+            resp = requests.post(url, headers=headers, json=data, timeout=10)
+            print(f"Trying model {model} -> status {resp.status_code}")
+            if resp.status_code == 200:
+                # Success, cache this model
+                _discovered_model = model
+                return resp.json()['choices'][0]['message']['content'].strip()
+            else:
+                print(f"Model {model} failed: {resp.text[:200]}")
+                continue  # try next model
+        except Exception as e:
+            print(f"Model {model} exception: {e}")
+            continue
 
-        if resp.status_code == 200:
-            return resp.json()['choices'][0]['message']['content'].strip()
-        else:
-            print(f"Groq API Error: {resp.status_code}")
-            print("Response text:", resp.text)
-            return f"[TRANSLATION ERROR {resp.status_code}] " + text
-    except Exception as e:
-        print(f"Translation failed with exception: {e}")
-        return f"[TRANSLATION FAILED] " + text
+    # If all candidates fail, try dynamic discovery
+    print("All candidate models failed. Fetching available models...")
+    available = get_groq_models()
+    for model in available:
+        data = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": "Translate this financial news text to Persian. Output only translation."},
+                {"role": "user", "content": text}
+            ],
+            "max_tokens": 300,
+            "temperature": 0.3
+        }
+        try:
+            resp = requests.post(url, headers=headers, json=data, timeout=10)
+            print(f"Trying dynamically discovered model {model} -> status {resp.status_code}")
+            if resp.status_code == 200:
+                _discovered_model = model
+                return resp.json()['choices'][0]['message']['content'].strip()
+        except Exception as e:
+            print(f"Dynamic model {model} exception: {e}")
+            continue
+
+    # If nothing works, return original text with error
+    return "[TRANSLATION FAILED] " + text
 
 def score_sentiment(text):
     text_lower = text.lower()
@@ -96,7 +185,7 @@ def sentiment_label(score):
 
 def format_message(article):
     title_en = article['title']
-    summary_en = article['summary'][:300]  # truncate
+    summary_en = article['summary'][:300]
     persian_title = translate_to_persian(title_en)
     persian_summary = translate_to_persian(summary_en)
     score = score_sentiment(title_en + ' ' + summary_en)
@@ -136,13 +225,12 @@ def run():
     processed = load_processed()
     pending = load_pending()
 
-    # Fetch new articles
     print("Fetching feeds...")
     all_articles = []
     for url in RSS_FEEDS:
         try:
             feed = feedparser.parse(url)
-            for entry in feed.entries[:3]:  # limit per feed for testing
+            for entry in feed.entries[:3]:
                 all_articles.append({
                     'id': entry.get('link', ''),
                     'title': entry.get('title', ''),
@@ -152,7 +240,6 @@ def run():
         except Exception as e:
             print(f"Error fetching {url}: {e}")
 
-    # Combine pending + new, filter
     candidates = pending + all_articles
     relevant = []
     for art in candidates:
@@ -162,7 +249,6 @@ def run():
         if any(kw in text for kw in KEYWORDS):
             relevant.append(art)
 
-    # Sort by nothing (RSS order) then limit
     relevant = relevant[:MAX_POSTS_PER_RUN]
 
     if not relevant:
@@ -170,11 +256,10 @@ def run():
         save_processed(processed)
         return
 
-    # Post each with delay
     for i, art in enumerate(relevant):
         print(f"\n--- Article {i+1}/{len(relevant)} ---")
         msg = format_message(art)
-        print(msg)   # Dry-run: print instead of Telegram post
+        print(msg)
 
         processed.add(art['id'])
 
