@@ -24,9 +24,9 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
 # Candidate models to try first (in order)
 CANDIDATE_MODELS = [
-    "llama-3.3-70b-versatile",
-    "llama3-8b-8192",          # likely decommissioned, but kept as fallback
-    "mixtral-8x7b-32768"
+    "llama-3.3-70b-versatile",   # may or may not be available
+    "meta-llama/llama-4-scout-17b-16e-instruct",  # another possible model
+    "qwen/qwen3.6-27b"            # known to work, but may output thinking
 ]
 
 # Cache for dynamically discovered model
@@ -50,17 +50,14 @@ def clean_html(text):
     return re.sub('<.*?>', '', text)
 
 def get_groq_models():
-    """Fetch list of available models from Groq API."""
+    """Fetch list of active models from Groq API."""
     url = "https://api.groq.com/openai/v1/models"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
     try:
         resp = requests.get(url, headers=headers, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
-            models = []
-            for m in data.get('data', []):
-                if m.get('active', False):
-                    models.append(m['id'])
+            models = [m['id'] for m in data.get('data', []) if m.get('active', False)]
             return models
         else:
             print(f"Failed to fetch models: {resp.status_code} {resp.text[:200]}")
@@ -69,32 +66,16 @@ def get_groq_models():
         print(f"Error fetching models: {e}")
         return []
 
-def get_translation_model():
-    """Return a working model ID, trying candidates first then falling back to dynamic discovery."""
-    global _discovered_model
-    # First check if we already found a model earlier in this run
-    if _discovered_model:
-        return _discovered_model
-
-    # Try candidate models one by one in a quick test (can reuse translation function later)
-    # But we need to test them in actual translation; we'll handle that in translate_to_persian.
-    # For now, we just return the first candidate; the translation loop will try others if it fails.
-    for model in CANDIDATE_MODELS:
-        # We'll do a minimal test: just attempt a trivial translation and check status.
-        # To avoid extra API calls, we could directly attempt the real translation and see if it fails.
-        # Here we'll just return the first candidate; the translate function will iterate through candidates on failure.
-        return model
-    # If all candidates are bad (shouldn't happen since we return first), we do dynamic discovery.
-    models = get_groq_models()
-    if models:
-        # Prefer models containing "llama" or "mixtral"
-        preferred = [m for m in models if 'llama' in m or 'mixtral' in m]
-        if preferred:
-            _discovered_model = preferred[0]
-        else:
-            _discovered_model = models[0]
-        return _discovered_model
-    return None
+def extract_translation(raw_output):
+    """Remove any thinking block and return only the final translation."""
+    if not raw_output:
+        return raw_output
+    # If there is a closing think tag, take text after it
+    if '</think>' in raw_output:
+        raw_output = raw_output.split('</think>')[-1].strip()
+    # Also remove any leading <think> just in case
+    raw_output = re.sub(r'^<think>.*?</think>', '', raw_output, flags=re.DOTALL).strip()
+    return raw_output
 
 def translate_to_persian(text):
     """Translate English text to Persian, trying multiple models automatically."""
@@ -103,7 +84,6 @@ def translate_to_persian(text):
 
     global _discovered_model
 
-    # List of models to try, in order
     models_to_try = CANDIDATE_MODELS.copy()
     if _discovered_model and _discovered_model not in models_to_try:
         models_to_try.insert(0, _discovered_model)
@@ -118,7 +98,7 @@ def translate_to_persian(text):
         data = {
             "model": model,
             "messages": [
-                {"role": "system", "content": "Translate this financial news text to Persian. Output only translation."},
+                {"role": "system", "content": "You are a professional translator. Translate the following financial news text to Persian. Do not include any reasoning or thinking. Output only the final translation."},
                 {"role": "user", "content": text}
             ],
             "max_tokens": 300,
@@ -128,12 +108,13 @@ def translate_to_persian(text):
             resp = requests.post(url, headers=headers, json=data, timeout=10)
             print(f"Trying model {model} -> status {resp.status_code}")
             if resp.status_code == 200:
-                # Success, cache this model
+                raw = resp.json()['choices'][0]['message']['content'].strip()
+                cleaned = extract_translation(raw)
                 _discovered_model = model
-                return resp.json()['choices'][0]['message']['content'].strip()
+                return cleaned
             else:
                 print(f"Model {model} failed: {resp.text[:200]}")
-                continue  # try next model
+                continue
         except Exception as e:
             print(f"Model {model} exception: {e}")
             continue
@@ -145,7 +126,7 @@ def translate_to_persian(text):
         data = {
             "model": model,
             "messages": [
-                {"role": "system", "content": "Translate this financial news text to Persian. Output only translation."},
+                {"role": "system", "content": "You are a professional translator. Translate the following financial news text to Persian. Do not include any reasoning or thinking. Output only the final translation."},
                 {"role": "user", "content": text}
             ],
             "max_tokens": 300,
@@ -155,13 +136,14 @@ def translate_to_persian(text):
             resp = requests.post(url, headers=headers, json=data, timeout=10)
             print(f"Trying dynamically discovered model {model} -> status {resp.status_code}")
             if resp.status_code == 200:
+                raw = resp.json()['choices'][0]['message']['content'].strip()
+                cleaned = extract_translation(raw)
                 _discovered_model = model
-                return resp.json()['choices'][0]['message']['content'].strip()
+                return cleaned
         except Exception as e:
             print(f"Dynamic model {model} exception: {e}")
             continue
 
-    # If nothing works, return original text with error
     return "[TRANSLATION FAILED] " + text
 
 def score_sentiment(text):
