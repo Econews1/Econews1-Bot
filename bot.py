@@ -50,7 +50,7 @@ def translate_to_persian(text):
         "Content-Type": "application/json"
     }
     data = {
-        "model": "llama-3.1-8b-instant",
+        "model": "llama3-8b-8192",   # Changed model name
         "messages": [
             {"role": "system", "content": "Translate this financial news text to Persian. Output only translation."},
             {"role": "user", "content": text}
@@ -61,7 +61,7 @@ def translate_to_persian(text):
     try:
         resp = requests.post(url, headers=headers, json=data, timeout=10)
 
-        # Debug: print status and response body (first 500 chars)
+        # Debug output
         print(f"Groq API status: {resp.status_code}")
         print(f"Groq API response (first 500 chars): {resp.text[:500]}")
 
