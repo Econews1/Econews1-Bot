@@ -24,9 +24,9 @@ jobs:
         run: |
           git config --local user.email "bot@users.noreply.github.com"
           git config --local user.name "News Bot"
-          git pull --rebase origin main
           for f in queue.json processed_ids.json last_working_model.txt; do
             [ -f "$f" ] && git add "$f"
           done
-          git diff --staged --quiet || git commit -m "Update bot state"
+          git diff --cached --quiet || git commit -m "Update bot state"
+          git pull --rebase origin main
           git push origin main
