@@ -611,12 +611,12 @@ def extract_image_url(entry):
                 return link.get('href', '')
     return ''
 
-# ================= FORMAT MESSAGE (FIXED NO DUPLICATION) =================
+# ================= FORMAT MESSAGE (SMART CONDITIONAL SUMMARY) =================
 def format_message(article):
     title_en = article['title']
     summary_en = article['summary'][:200]
     persian_title = translate_to_persian(title_en)
-    persian_summary = translate_to_persian(summary_en)
+    full_persian_summary = translate_to_persian(summary_en)
 
     gold_score = score_sentiment(title_en + ' ' + summary_en)
     gold_label = sentiment_label(gold_score)
@@ -638,15 +638,33 @@ def format_message(article):
     else:
         emoji = "📰"
 
-    # Take only the first sentence as summary and ensure period at end.
-    if '.' in persian_summary:
-        tldr = persian_summary.split('.')[0].strip() + '.'
+    # Split summary into sentences
+    if '.' in full_persian_summary:
+        sentences = [s.strip() for s in full_persian_summary.split('.') if s.strip()]
+        first_sentence = sentences[0] + '.'
+        remaining_sentences = sentences[1:]
     else:
-        tldr = persian_summary.strip() + '.'
+        first_sentence = full_persian_summary.strip() + '.'
+        remaining_sentences = []
+
+    # Determine if remaining text contains important financial information
+    important_keywords = [
+        '٪', '%', 'نرخ', 'شاخص', 'میلیارد', 'میلیون', 'هزار', 'دلار', 'یورو',
+        'پوند', 'ین', 'نفت', 'طلا', 'تورم', 'بیکاری', 'فدرال', 'بانک مرکزی',
+        'سود', 'قیمت', 'تولید', 'صادرات', 'واردات', 'سهام', 'بورس', 'بازار',
+        'افزایش', 'کاهش', 'رشد', 'سقوط', 'رکورد', 'بالاترین', 'پایین‌ترین',
+        'پیش‌بینی', 'تحلیل', 'تصمیم', 'سیاست', 'نرخ بهره'
+    ]
+    remaining_text = '. '.join(remaining_sentences)
+    has_important = bool(re.search(r'[۰-۹0-9]', remaining_text)) or any(kw in remaining_text for kw in important_keywords)
 
     msg = f"{emoji} <b>{persian_title}</b>\n"
-    msg += f"<i>خلاصه:</i> {tldr}\n\n"
-    msg += gold_label
+    msg += f"<i>خلاصه:</i> {first_sentence}\n"
+    if remaining_sentences and has_important:
+        # Include up to 2 additional sentences
+        extra = '. '.join(remaining_sentences[:2]) + '.'
+        msg += f"<i>جزئیات بیشتر:</i> {extra}\n"
+    msg += "\n" + gold_label
     if oil_label:
         msg += "\n" + oil_label
 
