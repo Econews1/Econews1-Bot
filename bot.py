@@ -30,7 +30,8 @@ RSS_FEEDS = [
     "https://www.eia.gov/rss/todayinenergy.xml",
 ]
 
-MAX_ARTICLES_PER_COLLECT = 5
+POST_INTERVAL = 360          # seconds (6 minutes for production)
+MAX_POSTS_PER_RUN = 5
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
@@ -45,6 +46,7 @@ FALLBACK_MODELS = [
 ]
 MODEL_CACHE_FILE = "last_working_model.txt"
 
+# ================= KEYWORD FILTER =================
 KEYWORDS = [
     'gold', 'xau', 'dollar', 'dxy', 'fed', 'rate', 'inflation',
     'cpi', 'oil', 'crude', 'brent', 'wti', 'opec', 'gdp', 'nfp',
@@ -57,10 +59,26 @@ BULLISH = ['rate cut', 'weak dollar', 'geopolitical tension', 'recession',
 BEARISH = ['rate hike', 'strong dollar', 'risk appetite', 'higher yields',
            'hawkish', 'economic growth', 'optimism', 'risk-on', 'tightening']
 
+# Oil sentiment keywords
+OIL_BULLISH = [
+    'opec cut', 'oil supply', 'crude inventory draw', 'geopolitical risk',
+    'middle east', 'sanctions', 'supply disruption', 'oil production cut',
+    'drone attack', 'pipeline', 'war', 'embargo', 'energy crisis',
+    'brent', 'wti', 'oil reserve', 'crude oil', 'petroleum'
+]
+
+OIL_BEARISH = [
+    'opec increase', 'oil demand', 'recession', 'slowdown', 'supply glut',
+    'inventory build', 'demand destruction', 'covid', 'economic weakness',
+    'higher interest rates', 'strong dollar', 'risk-off', 'oil price drop',
+    'lower oil demand', 'ev sales', 'alternative energy'
+]
+
 # ================= PERSIAN FONT SETUP =================
 _persian_font_prop = None
 
 def setup_persian_font():
+    """Download and register Persian font, return FontProperties."""
     global _persian_font_prop
     if _persian_font_prop is not None:
         return _persian_font_prop
@@ -104,6 +122,7 @@ def setup_persian_font():
 
 # ================= PERSIAN TEXT PROCESSING =================
 def to_persian_digits(text):
+    """Convert Western Arabic numerals (0-9) to Eastern Arabic numerals (۰-۹)."""
     if not text:
         return text
     persian_digits = '۰۱۲۳۴۵۶۷۸۹'
@@ -112,6 +131,10 @@ def to_persian_digits(text):
     return text.translate(translation)
 
 def fa(text):
+    """
+    Convert Persian/Arabic text for correct rendering in matplotlib.
+    Reshape letters, convert digits, but do NOT reverse (font handles RTL).
+    """
     if not text:
         return text
     try:
@@ -551,6 +574,25 @@ def sentiment_label(score):
     else:
         return "اثر بر طلا: خنثی ➖"
 
+def score_oil_sentiment(text):
+    text_lower = text.lower()
+    score = 0
+    for w in OIL_BULLISH:
+        if w in text_lower:
+            score += 1
+    for w in OIL_BEARISH:
+        if w in text_lower:
+            score -= 1
+    return score
+
+def oil_sentiment_label(score):
+    if score >= 1:
+        return "اثر بر نفت: احتمالاً مثبت 📈"
+    elif score <= -1:
+        return "اثر بر نفت: احتمالاً منفی 📉"
+    else:
+        return "اثر بر نفت: خنثی ➖"
+
 # ================= IMAGE EXTRACTION =================
 def extract_image_url(entry):
     if hasattr(entry, 'media_content') and entry.media_content:
@@ -569,17 +611,25 @@ def extract_image_url(entry):
                 return link.get('href', '')
     return ''
 
-# ================= FORMAT MESSAGE (NO LINK) =================
+# ================= FORMAT MESSAGE (WITH OIL SENTIMENT) =================
 def format_message(article):
     title_en = article['title']
     summary_en = article['summary'][:200]
     persian_title = translate_to_persian(title_en)
     persian_summary = translate_to_persian(summary_en)
-    score = score_sentiment(title_en + ' ' + summary_en)
-    label = sentiment_label(score)
+
+    gold_score = score_sentiment(title_en + ' ' + summary_en)
+    gold_label = sentiment_label(gold_score)
 
     text_lower = (title_en + ' ' + summary_en).lower()
-    if 'oil' in text_lower or 'crude' in text_lower or 'opec' in text_lower:
+    is_oil_related = any(kw in text_lower for kw in ['oil', 'crude', 'brent', 'wti', 'opec', 'petroleum', 'energy'])
+    if is_oil_related:
+        oil_score = score_oil_sentiment(title_en + ' ' + summary_en)
+        oil_label = oil_sentiment_label(oil_score)
+    else:
+        oil_label = ""
+
+    if is_oil_related:
         emoji = "🛢️"
     elif 'dollar' in text_lower or 'usd' in text_lower or 'dxy' in text_lower or 'fed' in text_lower:
         emoji = "💵"
@@ -593,7 +643,9 @@ def format_message(article):
     msg = f"{emoji} <b>{persian_title}</b>\n"
     msg += f"<i>خلاصه:</i> {tldr}\n\n"
     msg += persian_summary + "\n\n"
-    msg += label
+    msg += gold_label
+    if oil_label:
+        msg += "\n" + oil_label
 
     return msg
 
@@ -949,16 +1001,13 @@ def collect_news():
         if any(kw in text for kw in KEYWORDS):
             relevant.append(art)
 
-    # Limit to MAX_ARTICLES_PER_COLLECT
-    new_articles = relevant[:MAX_ARTICLES_PER_COLLECT]
+    new_articles = relevant[:MAX_POSTS_PER_RUN]
 
-    # Add new articles to queue and mark as processed
     for art in new_articles:
-        if art not in queue:  # avoid exact duplicates
+        if art not in queue:
             queue.append(art)
             processed.add(art['id'])
 
-    # Save state
     save_queue(queue)
     save_processed(processed)
 
@@ -971,8 +1020,7 @@ def post_one():
         print("Queue is empty. Nothing to post.")
         return
 
-    article = queue.pop(0)  # oldest article
-    # Format and send
+    article = queue.pop(0)
     if article.get('image_url'):
         msg = format_message(article)
         send_to_telegram(msg, article['image_url'])
@@ -980,7 +1028,6 @@ def post_one():
         msg = format_message(article)
         send_to_telegram(msg)
 
-    # Save remaining queue
     save_queue(queue)
 
 # ================= MAIN DISPATCHER =================
