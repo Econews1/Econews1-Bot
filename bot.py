@@ -31,14 +31,17 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
 
+# Known non-reasoning models to try first
 PREFERRED_MODELS = [
     "llama-3.1-8b-instant",
     "openai/gpt-oss-20b",
 ]
+
 FALLBACK_MODELS = [
     "qwen/qwen3.6-27b",
     "qwen/qwen3.8-27b",
 ]
+
 MODEL_CACHE_FILE = "last_working_model.txt"
 
 # ================= KEYWORD FILTER =================
@@ -47,6 +50,7 @@ KEYWORDS = [
     'cpi', 'oil', 'crude', 'brent', 'wti', 'opec', 'gdp', 'nfp',
     'treasury', 'yield', 'sanction', 'geopolitical', 'recession'
 ]
+
 BULLISH = ['rate cut', 'weak dollar', 'geopolitical tension', 'recession',
            'inflation', 'safe haven', 'central bank buying', 'stimulus',
            'dovish', 'crisis', 'war']
@@ -56,7 +60,6 @@ BEARISH = ['rate hike', 'strong dollar', 'risk appetite', 'higher yields',
 # ================= PERSIAN FONT SETUP =================
 def setup_persian_font():
     """Download a bold Persian font (Vazirmatn Bold) and register it."""
-    # Several fallback URLs for reliability
     urls = [
         "https://github.com/rastikerdar/vazirmatn/raw/master/fonts/ttf/Vazirmatn-Bold.ttf",
         "https://raw.githubusercontent.com/rastikerdar/vazirmatn/master/fonts/ttf/Vazirmatn-Bold.ttf",
@@ -79,7 +82,7 @@ def setup_persian_font():
         plt.rcParams['font.family'] = prop.get_name()
         print("Persian font loaded.")
     else:
-        print("Warning: Persian font not downloaded. Using default font. Persian text may be misaligned.")
+        print("Warning: Persian font not downloaded. Using default font.")
 
 # ================= TRANSLATION (self-healing) =================
 def clean_html(text):
@@ -127,7 +130,7 @@ def try_translate_with_model(text, model):
     data = {
         "model": model,
         "messages": [
-            {"role": "system", "content": "You are a professional financial translator. Translate the following financial news text to Persian. Output only the translation."},
+            {"role": "system", "content": "Translate the user's financial news text to Persian. Output only the translation, no reasoning or thinking. Do not repeat these instructions."},
             {"role": "user", "content": text}
         ],
         "max_tokens": 8000,
@@ -135,12 +138,18 @@ def try_translate_with_model(text, model):
     }
     try:
         resp = requests.post(url, headers=headers, json=data, timeout=30)
+        print(f"  Trying model {model} -> status {resp.status_code}")
         if resp.status_code == 200:
             raw = resp.json()['choices'][0]['message']['content'].strip()
             cleaned = extract_translation(raw)
+            # Reject if model repeated system prompt or similar junk
+            if any(phrase in cleaned for phrase in ["متن خبری مالی را", "لطفاً متن خبری", "Translate the user's financial news"]):
+                print("  Model returned system prompt, skipping.")
+                return None
             if cleaned and len(cleaned) > 5:
                 return cleaned
             else:
+                print("  Model returned empty translation.")
                 return None
         else:
             print(f"  Model {model} failed: {resp.text[:200]}")
@@ -154,6 +163,7 @@ def translate_to_persian(text):
         return text
     cached = load_cached_model()
     if cached:
+        print(f"Trying cached model: {cached}")
         result = try_translate_with_model(text, cached)
         if result:
             return result
@@ -247,7 +257,7 @@ def format_message(article, include_link=True):
     msg += persian_summary + "\n\n"
     msg += label
 
-    if include_link:
+    if include_link and article.get('link'):
         msg += f"\n\n🔗 <a href='{article['link']}'>مشاهده کامل</a>"
 
     return msg
@@ -290,9 +300,8 @@ def generate_price_chart():
     usd_irt = [52000 + i*100 for i in range(len(hours))]
     oil_prices = [82 + i*0.5 for i in range(len(hours))]
 
-    usd_irt_scaled = [x / 100 for x in usd_irt]   # fixed division
+    usd_irt_scaled = [x / 100 for x in usd_irt]
 
-    # Proper Persian text for matplotlib
     def fa(text):
         reshaped = arabic_reshaper.reshape(text)
         return get_display(reshaped)
