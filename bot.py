@@ -30,8 +30,7 @@ RSS_FEEDS = [
     "https://www.eia.gov/rss/todayinenergy.xml",
 ]
 
-POST_INTERVAL = 360          # seconds (6 minutes for production)
-MAX_POSTS_PER_RUN = 5
+MAX_ARTICLES_PER_COLLECT = 5
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
@@ -46,7 +45,6 @@ FALLBACK_MODELS = [
 ]
 MODEL_CACHE_FILE = "last_working_model.txt"
 
-# ================= KEYWORD FILTER =================
 KEYWORDS = [
     'gold', 'xau', 'dollar', 'dxy', 'fed', 'rate', 'inflation',
     'cpi', 'oil', 'crude', 'brent', 'wti', 'opec', 'gdp', 'nfp',
@@ -63,7 +61,6 @@ BEARISH = ['rate hike', 'strong dollar', 'risk appetite', 'higher yields',
 _persian_font_prop = None
 
 def setup_persian_font():
-    """Download and register Persian font, return FontProperties."""
     global _persian_font_prop
     if _persian_font_prop is not None:
         return _persian_font_prop
@@ -107,7 +104,6 @@ def setup_persian_font():
 
 # ================= PERSIAN TEXT PROCESSING =================
 def to_persian_digits(text):
-    """Convert Western Arabic numerals (0-9) to Eastern Arabic numerals (۰-۹)."""
     if not text:
         return text
     persian_digits = '۰۱۲۳۴۵۶۷۸۹'
@@ -116,10 +112,6 @@ def to_persian_digits(text):
     return text.translate(translation)
 
 def fa(text):
-    """
-    Convert Persian/Arabic text for correct rendering in matplotlib.
-    Reshape letters, convert digits, but do NOT reverse (font handles RTL).
-    """
     if not text:
         return text
     try:
@@ -382,7 +374,6 @@ IRAN_RESPECT_GLOSSARY = {
     "Iran's malign activities": 'سیاست‌های منطقه‌ای ایران',
 }
 
-# Known Persian text corrections
 PERSIAN_CORRECTIONS = {
     'بر بره': 'بر بشکه',
     'بره ': 'بشکه ',
@@ -579,7 +570,7 @@ def extract_image_url(entry):
     return ''
 
 # ================= FORMAT MESSAGE (NO LINK) =================
-def format_message(article, include_link=False):
+def format_message(article):
     title_en = article['title']
     summary_en = article['summary'][:200]
     persian_title = translate_to_persian(title_en)
@@ -903,16 +894,36 @@ def economic_calendar():
         msg += f"▫️ {day}: {event} – {time_}\n"
     send_to_telegram(msg)
 
-# ================= MAIN NEWS COLLECTION & POSTING =================
-def run_news():
+# ================= STATE =================
+def load_processed():
+    if os.path.exists('processed_ids.json'):
+        with open('processed_ids.json') as f:
+            return set(json.load(f))
+    return set()
+
+def save_processed(ids):
+    with open('processed_ids.json', 'w') as f:
+        json.dump(list(ids)[-1000:], f)
+
+def load_queue():
+    if os.path.exists('queue.json'):
+        with open('queue.json') as f:
+            return json.load(f)
+    return []
+
+def save_queue(items):
+    with open('queue.json', 'w') as f:
+        json.dump(items, f)
+
+# ================= COLLECT NEWS (NO POSTING) =================
+def collect_news():
     processed = load_processed()
-    pending = load_pending()
+    queue = load_queue()
 
     print("Fetching feeds...")
     all_articles = []
     for url in RSS_FEEDS:
         try:
-            # Use requests with timeout to avoid hanging
             resp = requests.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
             if resp.status_code == 200:
                 feed = feedparser.parse(resp.content)
@@ -930,68 +941,55 @@ def run_news():
         except Exception as e:
             print(f"Error fetching {url}: {e}")
 
-    candidates = pending + all_articles
     relevant = []
-    for art in candidates:
+    for art in all_articles:
         if art['id'] in processed:
             continue
         text = (art['title'] + ' ' + art['summary']).lower()
         if any(kw in text for kw in KEYWORDS):
             relevant.append(art)
 
-    relevant = relevant[:MAX_POSTS_PER_RUN]
+    # Limit to MAX_ARTICLES_PER_COLLECT
+    new_articles = relevant[:MAX_ARTICLES_PER_COLLECT]
 
-    if not relevant:
-        print("No new relevant articles.")
-        save_processed(processed)
+    # Add new articles to queue and mark as processed
+    for art in new_articles:
+        if art not in queue:  # avoid exact duplicates
+            queue.append(art)
+            processed.add(art['id'])
+
+    # Save state
+    save_queue(queue)
+    save_processed(processed)
+
+    print(f"Collected {len(new_articles)} new articles. Queue size: {len(queue)}")
+
+# ================= POST ONE ARTICLE =================
+def post_one():
+    queue = load_queue()
+    if not queue:
+        print("Queue is empty. Nothing to post.")
         return
 
-    for i, art in enumerate(relevant):
-        print(f"\n--- Article {i+1}/{len(relevant)} ---")
-        if art.get('image_url'):
-            msg = format_message(art, include_link=False)
-            send_to_telegram(msg, art['image_url'])
-        else:
-            msg = format_message(art, include_link=True)
-            send_to_telegram(msg)
+    article = queue.pop(0)  # oldest article
+    # Format and send
+    if article.get('image_url'):
+        msg = format_message(article)
+        send_to_telegram(msg, article['image_url'])
+    else:
+        msg = format_message(article)
+        send_to_telegram(msg)
 
-        processed.add(art['id'])
-
-        if i < len(relevant)-1:
-            print(f"Waiting {POST_INTERVAL} seconds...")
-            time.sleep(POST_INTERVAL)
-
-    save_processed(processed)
-    print("\nNews run complete.")
-
-# ================= STATE =================
-def load_processed():
-    if os.path.exists('processed_ids.json'):
-        with open('processed_ids.json') as f:
-            return set(json.load(f))
-    return set()
-
-def save_processed(ids):
-    with open('processed_ids.json', 'w') as f:
-        json.dump(list(ids)[-1000:], f)
-
-def load_pending():
-    if os.path.exists('pending_queue.json'):
-        with open('pending_queue.json') as f:
-            data = json.load(f)
-        os.remove('pending_queue.json')
-        return data
-    return []
-
-def save_pending(items):
-    with open('pending_queue.json', 'w') as f:
-        json.dump(items, f)
+    # Save remaining queue
+    save_queue(queue)
 
 # ================= MAIN DISPATCHER =================
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "news"
-    if mode == "news":
-        run_news()
+    if mode == "collect":
+        collect_news()
+    elif mode == "post":
+        post_one()
     elif mode == "chart":
         send_price_charts()
     elif mode == "weekly":
@@ -999,4 +997,4 @@ if __name__ == "__main__":
     elif mode == "calendar":
         economic_calendar()
     else:
-        print("Unknown mode. Use: news, chart, weekly, calendar")
+        print("Unknown mode. Use: collect, post, chart, weekly, calendar")
