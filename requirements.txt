@@ -1,2 +1,5 @@
 feedparser
 requests
+matplotlib
+arabic-reshaper
+python-bidi
