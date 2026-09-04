@@ -6,10 +6,12 @@ import re
 import time
 import sys
 import matplotlib
-matplotlib.use('Agg')   # non-interactive backend
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from datetime import datetime, timedelta
+import arabic_reshaper
+from bidi.algorithm import get_display
 
 # ================= CONFIGURATION =================
 RSS_FEEDS = [
@@ -29,17 +31,14 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
 
-# Known non-reasoning models to try first
 PREFERRED_MODELS = [
     "llama-3.1-8b-instant",
     "openai/gpt-oss-20b",
 ]
-
 FALLBACK_MODELS = [
     "qwen/qwen3.6-27b",
     "qwen/qwen3.8-27b",
 ]
-
 MODEL_CACHE_FILE = "last_working_model.txt"
 
 # ================= KEYWORD FILTER =================
@@ -48,7 +47,6 @@ KEYWORDS = [
     'cpi', 'oil', 'crude', 'brent', 'wti', 'opec', 'gdp', 'nfp',
     'treasury', 'yield', 'sanction', 'geopolitical', 'recession'
 ]
-
 BULLISH = ['rate cut', 'weak dollar', 'geopolitical tension', 'recession',
            'inflation', 'safe haven', 'central bank buying', 'stimulus',
            'dovish', 'crisis', 'war']
@@ -57,24 +55,31 @@ BEARISH = ['rate hike', 'strong dollar', 'risk appetite', 'higher yields',
 
 # ================= PERSIAN FONT SETUP =================
 def setup_persian_font():
-    """Download a Persian font (B Nazanin) from a public URL and register it."""
-    font_url = "https://github.com/mohammadhasanii/Persian-Fonts/raw/master/B%20Nazanin.ttf"
+    """Download a bold Persian font (Vazirmatn Bold) and register it."""
+    # Several fallback URLs for reliability
+    urls = [
+        "https://github.com/rastikerdar/vazirmatn/raw/master/fonts/ttf/Vazirmatn-Bold.ttf",
+        "https://raw.githubusercontent.com/rastikerdar/vazirmatn/master/fonts/ttf/Vazirmatn-Bold.ttf",
+        "https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/fonts/ttf/Vazirmatn-Bold.ttf"
+    ]
     font_path = "persian_font.ttf"
-    try:
-        if not os.path.exists(font_path):
-            r = requests.get(font_url, timeout=15)
-            if r.status_code == 200:
-                with open(font_path, 'wb') as f:
-                    f.write(r.content)
-        if os.path.exists(font_path):
-            fm.fontManager.addfont(font_path)
-            prop = fm.FontProperties(fname=font_path)
-            plt.rcParams['font.family'] = prop.get_name()
-            print("Persian font loaded successfully.")
-        else:
-            print("Warning: Persian font not downloaded. Using default font.")
-    except Exception as e:
-        print(f"Font setup error: {e}. Using default font.")
+    if not os.path.exists(font_path):
+        for url in urls:
+            try:
+                r = requests.get(url, timeout=15)
+                if r.status_code == 200:
+                    with open(font_path, 'wb') as f:
+                        f.write(r.content)
+                    break
+            except Exception:
+                continue
+    if os.path.exists(font_path):
+        fm.fontManager.addfont(font_path)
+        prop = fm.FontProperties(fname=font_path)
+        plt.rcParams['font.family'] = prop.get_name()
+        print("Persian font loaded.")
+    else:
+        print("Warning: Persian font not downloaded. Using default font. Persian text may be misaligned.")
 
 # ================= TRANSLATION (self-healing) =================
 def clean_html(text):
@@ -216,7 +221,7 @@ def extract_image_url(entry):
                 return link.get('href', '')
     return ''
 
-# ================= FORMAT MESSAGE (with emoji & TL;DR) =================
+# ================= FORMAT MESSAGE =================
 def format_message(article, include_link=True):
     title_en = article['title']
     summary_en = article['summary'][:200]
@@ -225,7 +230,6 @@ def format_message(article, include_link=True):
     score = score_sentiment(title_en + ' ' + summary_en)
     label = sentiment_label(score)
 
-    # Emoji by category (simple detection)
     text_lower = (title_en + ' ' + summary_en).lower()
     if 'oil' in text_lower or 'crude' in text_lower or 'opec' in text_lower:
         emoji = "🛢️"
@@ -236,7 +240,6 @@ def format_message(article, include_link=True):
     else:
         emoji = "📰"
 
-    # TL;DR: first sentence of summary
     tldr = persian_summary.split('.')[0] if '.' in persian_summary else persian_summary[:80]
 
     msg = f"{emoji} <b>{persian_title}</b>\n"
@@ -277,24 +280,30 @@ def send_to_telegram(message, image_url=None):
     except Exception as e:
         print(f"sendMessage exception: {e}")
 
-# ================= PRICE CHART GENERATION =================
+# ================= PRICE CHART =================
 def generate_price_chart():
     """Generate a simple line chart for gold, USD/IRT, oil using mock data."""
     setup_persian_font()
 
-    # Sample data (replace with real API data later)
     hours = list(range(0, 24, 2))
-    gold_prices = [2030 + i*2 for i in range(len(hours))]      # mock upward trend
-    usd_irt = [52000 + i*100 for i in range(len(hours))]       # mock upward trend
-    oil_prices = [82 + i*0.5 for i in range(len(hours))]       # mock upward trend
+    gold_prices = [2030 + i*2 for i in range(len(hours))]
+    usd_irt = [52000 + i*100 for i in range(len(hours))]
+    oil_prices = [82 + i*0.5 for i in range(len(hours))]
+
+    usd_irt_scaled = [x / 100 for x in usd_irt]   # fixed division
+
+    # Proper Persian text for matplotlib
+    def fa(text):
+        reshaped = arabic_reshaper.reshape(text)
+        return get_display(reshaped)
 
     plt.figure(figsize=(10, 6))
-    plt.plot(hours, gold_prices, label='طلا (XAU/USD)', color='gold', linewidth=2)
-    plt.plot(hours, usd_irt/100, label='دلار/تومان (مقیاس ۱/۱۰۰)', color='blue', linewidth=2)
-    plt.plot(hours, oil_prices, label='نفت (Brent)', color='green', linewidth=2)
-    plt.xlabel('ساعت')
-    plt.ylabel('قیمت')
-    plt.title('نمودار قیمت‌های لحظه‌ای')
+    plt.plot(hours, gold_prices, label=fa('طلا (XAU/USD)'), color='gold', linewidth=2)
+    plt.plot(hours, usd_irt_scaled, label=fa('دلار/تومان (مقیاس ۱/۱۰۰)'), color='blue', linewidth=2)
+    plt.plot(hours, oil_prices, label=fa('نفت (Brent)'), color='green', linewidth=2)
+    plt.xlabel(fa('ساعت'))
+    plt.ylabel(fa('قیمت'))
+    plt.title(fa('نمودار قیمت‌های لحظه‌ای'))
     plt.legend()
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
@@ -317,7 +326,6 @@ def send_price_chart():
 
 # ================= WEEKLY SUMMARY =================
 def weekly_summary():
-    # Mock data – replace with real weekly change calculation later
     summary = (
         "📅 <b>خلاصه هفتگی بازار</b>\n\n"
         "🟡 طلا: +۲.۱٪\n"
@@ -329,7 +337,6 @@ def weekly_summary():
 
 # ================= ECONOMIC CALENDAR =================
 def economic_calendar():
-    # Hardcoded upcoming events (example)
     events = [
         ("امروز", "CPI آمریکا", "ساعت ۱۶:۳۰"),
         ("فردا", "نرخ بیکاری", "ساعت ۱۷:۰۰"),
