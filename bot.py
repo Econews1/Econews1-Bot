@@ -4,7 +4,12 @@ import json
 import os
 import re
 import time
-from datetime import datetime
+import sys
+import matplotlib
+matplotlib.use('Agg')   # non-interactive backend
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+from datetime import datetime, timedelta
 
 # ================= CONFIGURATION =================
 RSS_FEEDS = [
@@ -18,7 +23,7 @@ RSS_FEEDS = [
     "https://www.eia.gov/rss/todayinenergy.xml",
 ]
 
-POST_INTERVAL = 10      # seconds (use 360 for production)
+POST_INTERVAL = 10          # seconds (use 360 for production)
 MAX_POSTS_PER_RUN = 5
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -30,13 +35,11 @@ PREFERRED_MODELS = [
     "openai/gpt-oss-20b",
 ]
 
-# Fallback if preferred models fail (reasoning or others)
 FALLBACK_MODELS = [
     "qwen/qwen3.6-27b",
     "qwen/qwen3.8-27b",
 ]
 
-# File to cache the last working model
 MODEL_CACHE_FILE = "last_working_model.txt"
 
 # ================= KEYWORD FILTER =================
@@ -52,29 +55,47 @@ BULLISH = ['rate cut', 'weak dollar', 'geopolitical tension', 'recession',
 BEARISH = ['rate hike', 'strong dollar', 'risk appetite', 'higher yields',
            'hawkish', 'economic growth', 'optimism', 'risk-on', 'tightening']
 
-# ================= HELPER FUNCTIONS =================
+# ================= PERSIAN FONT SETUP =================
+def setup_persian_font():
+    """Download a Persian font (B Nazanin) from a public URL and register it."""
+    font_url = "https://github.com/mohammadhasanii/Persian-Fonts/raw/master/B%20Nazanin.ttf"
+    font_path = "persian_font.ttf"
+    try:
+        if not os.path.exists(font_path):
+            r = requests.get(font_url, timeout=15)
+            if r.status_code == 200:
+                with open(font_path, 'wb') as f:
+                    f.write(r.content)
+        if os.path.exists(font_path):
+            fm.fontManager.addfont(font_path)
+            prop = fm.FontProperties(fname=font_path)
+            plt.rcParams['font.family'] = prop.get_name()
+            print("Persian font loaded successfully.")
+        else:
+            print("Warning: Persian font not downloaded. Using default font.")
+    except Exception as e:
+        print(f"Font setup error: {e}. Using default font.")
+
+# ================= TRANSLATION (self-healing) =================
 def clean_html(text):
     return re.sub('<.*?>', '', text)
 
 def get_groq_models():
-    """Fetch list of active models from Groq API."""
     url = "https://api.groq.com/openai/v1/models"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
     try:
         resp = requests.get(url, headers=headers, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
-            models = [m['id'] for m in data.get('data', []) if m.get('active', False)]
-            return models
+            return [m['id'] for m in data.get('data', []) if m.get('active', False)]
         else:
-            print(f"Failed to fetch models: {resp.status_code} {resp.text[:200]}")
+            print(f"Failed to fetch models: {resp.status_code}")
             return []
     except Exception as e:
         print(f"Error fetching models: {e}")
         return []
 
 def extract_translation(raw_output):
-    """Remove any thinking block and return only the final translation."""
     if not raw_output:
         return ""
     if '</think>' in raw_output:
@@ -83,19 +104,16 @@ def extract_translation(raw_output):
     return raw_output
 
 def load_cached_model():
-    """Load the last successful model ID from file."""
     if os.path.exists(MODEL_CACHE_FILE):
         with open(MODEL_CACHE_FILE, 'r') as f:
             return f.read().strip()
     return None
 
 def save_cached_model(model_id):
-    """Save the successful model ID to file."""
     with open(MODEL_CACHE_FILE, 'w') as f:
         f.write(model_id)
 
 def try_translate_with_model(text, model):
-    """Attempt translation with a specific model. Return cleaned translation or None."""
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -112,14 +130,12 @@ def try_translate_with_model(text, model):
     }
     try:
         resp = requests.post(url, headers=headers, json=data, timeout=30)
-        print(f"  Trying model {model} -> status {resp.status_code}")
         if resp.status_code == 200:
             raw = resp.json()['choices'][0]['message']['content'].strip()
             cleaned = extract_translation(raw)
             if cleaned and len(cleaned) > 5:
                 return cleaned
             else:
-                print(f"  Model {model} returned empty translation.")
                 return None
         else:
             print(f"  Model {model} failed: {resp.text[:200]}")
@@ -129,54 +145,40 @@ def try_translate_with_model(text, model):
         return None
 
 def translate_to_persian(text):
-    """Translate text to Persian, automatically selecting the best available model."""
     if not GROQ_API_KEY:
-        return text  # fallback to original English
-
-    # 1. Try cached model first
-    cached_model = load_cached_model()
-    if cached_model:
-        print(f"Trying cached model: {cached_model}")
-        result = try_translate_with_model(text, cached_model)
+        return text
+    cached = load_cached_model()
+    if cached:
+        result = try_translate_with_model(text, cached)
         if result:
             return result
         else:
-            print("Cached model failed, removing cache.")
             if os.path.exists(MODEL_CACHE_FILE):
                 os.remove(MODEL_CACHE_FILE)
-
-    # 2. Try preferred non-reasoning models
     for model in PREFERRED_MODELS:
         result = try_translate_with_model(text, model)
         if result:
             save_cached_model(model)
             return result
-
-    # 3. Try fallback models (may include reasoning)
     for model in FALLBACK_MODELS:
         result = try_translate_with_model(text, model)
         if result:
             save_cached_model(model)
             return result
-
-    # 4. Dynamic discovery: fetch all active models and try them
     print("All known models failed. Fetching active models...")
     active_models = get_groq_models()
-    # Sort models: prefer those without "qwen" or "reasoning" in name
     def is_preferred(m):
         lower = m.lower()
         return 'qwen' not in lower and 'reason' not in lower
     sorted_models = sorted(active_models, key=lambda m: not is_preferred(m))
-
     for model in sorted_models:
         result = try_translate_with_model(text, model)
         if result:
             save_cached_model(model)
             return result
-
-    # If everything fails, return original English
     return text
 
+# ================= SENTIMENT =================
 def score_sentiment(text):
     text_lower = text.lower()
     score = 0
@@ -196,19 +198,16 @@ def sentiment_label(score):
     else:
         return "اثر بر طلا: خنثی ➖"
 
+# ================= IMAGE EXTRACTION =================
 def extract_image_url(entry):
-    """Try to extract an image URL from an RSS entry."""
-    # Check media_content (common in RSS 2.0)
     if hasattr(entry, 'media_content') and entry.media_content:
         for media in entry.media_content:
             if media.get('medium') == 'image' or media.get('type', '').startswith('image/'):
                 return media.get('url', '')
-    # Check enclosures (often used for images)
     if hasattr(entry, 'enclosures') and entry.enclosures:
         for enc in entry.enclosures:
             if enc.get('type', '').startswith('image/'):
                 return enc.get('href', '')
-    # Check links (some feeds put image in links with rel='enclosure')
     if hasattr(entry, 'links'):
         for link in entry.links:
             if link.get('rel') == 'enclosure' and link.get('type', '').startswith('image/'):
@@ -217,8 +216,8 @@ def extract_image_url(entry):
                 return link.get('href', '')
     return ''
 
+# ================= FORMAT MESSAGE (with emoji & TL;DR) =================
 def format_message(article, include_link=True):
-    """Create Persian message; if include_link is False, omit the article URL."""
     title_en = article['title']
     summary_en = article['summary'][:200]
     persian_title = translate_to_persian(title_en)
@@ -226,83 +225,123 @@ def format_message(article, include_link=True):
     score = score_sentiment(title_en + ' ' + summary_en)
     label = sentiment_label(score)
 
-    msg = f"📰 <b>{persian_title}</b>\n\n"
-    msg += f"{persian_summary}\n\n"
-    msg += f"{label}"
+    # Emoji by category (simple detection)
+    text_lower = (title_en + ' ' + summary_en).lower()
+    if 'oil' in text_lower or 'crude' in text_lower or 'opec' in text_lower:
+        emoji = "🛢️"
+    elif 'dollar' in text_lower or 'usd' in text_lower or 'dxy' in text_lower or 'fed' in text_lower:
+        emoji = "💵"
+    elif 'geopolitical' in text_lower or 'war' in text_lower or 'sanction' in text_lower:
+        emoji = "🌍"
+    else:
+        emoji = "📰"
+
+    # TL;DR: first sentence of summary
+    tldr = persian_summary.split('.')[0] if '.' in persian_summary else persian_summary[:80]
+
+    msg = f"{emoji} <b>{persian_title}</b>\n"
+    msg += f"<i>خلاصه:</i> {tldr}\n\n"
+    msg += persian_summary + "\n\n"
+    msg += label
 
     if include_link:
         msg += f"\n\n🔗 <a href='{article['link']}'>مشاهده کامل</a>"
 
     return msg
 
+# ================= SEND TO TELEGRAM =================
 def send_to_telegram(message, image_url=None):
-    """Send message (or photo) to Telegram channel."""
     if not TELEGRAM_BOT_TOKEN or not CHANNEL_ID:
-        print("Telegram not configured. Printing message:")
-        print(message)
+        print("Telegram not configured. Printing message:\n", message)
         return
-
     if image_url:
-        # Send photo with caption (no article link in caption)
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
-        payload = {
-            'chat_id': CHANNEL_ID,
-            'photo': image_url,
-            'caption': message,
-            'parse_mode': 'HTML'
-        }
+        payload = {'chat_id': CHANNEL_ID, 'photo': image_url, 'caption': message, 'parse_mode': 'HTML'}
         try:
             resp = requests.post(url, json=payload, timeout=30)
             if resp.status_code == 200:
-                print("Photo sent successfully.")
+                print("Photo sent.")
                 return
             else:
-                print(f"sendPhoto failed ({resp.status_code}): {resp.text[:200]}. Falling back to text.")
+                print(f"sendPhoto failed ({resp.status_code}), falling back to text.")
         except Exception as e:
-            print(f"sendPhoto exception: {e}. Falling back to text.")
-
-    # Send text message (with link preview)
+            print(f"sendPhoto exception: {e}, falling back to text.")
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        'chat_id': CHANNEL_ID,
-        'text': message,
-        'parse_mode': 'HTML',
-        'disable_web_page_preview': False
-    }
+    payload = {'chat_id': CHANNEL_ID, 'text': message, 'parse_mode': 'HTML', 'disable_web_page_preview': False}
     try:
         resp = requests.post(url, json=payload, timeout=30)
         if resp.status_code == 200:
-            print("Message sent successfully.")
+            print("Message sent.")
         else:
             print(f"sendMessage failed ({resp.status_code}): {resp.text[:200]}")
     except Exception as e:
         print(f"sendMessage exception: {e}")
 
-# ================= STATE =================
-def load_processed():
-    if os.path.exists('processed_ids.json'):
-        with open('processed_ids.json') as f:
-            return set(json.load(f))
-    return set()
+# ================= PRICE CHART GENERATION =================
+def generate_price_chart():
+    """Generate a simple line chart for gold, USD/IRT, oil using mock data."""
+    setup_persian_font()
 
-def save_processed(ids):
-    with open('processed_ids.json', 'w') as f:
-        json.dump(list(ids)[-1000:], f)
+    # Sample data (replace with real API data later)
+    hours = list(range(0, 24, 2))
+    gold_prices = [2030 + i*2 for i in range(len(hours))]      # mock upward trend
+    usd_irt = [52000 + i*100 for i in range(len(hours))]       # mock upward trend
+    oil_prices = [82 + i*0.5 for i in range(len(hours))]       # mock upward trend
 
-def load_pending():
-    if os.path.exists('pending_queue.json'):
-        with open('pending_queue.json') as f:
-            data = json.load(f)
-        os.remove('pending_queue.json')
-        return data
-    return []
+    plt.figure(figsize=(10, 6))
+    plt.plot(hours, gold_prices, label='طلا (XAU/USD)', color='gold', linewidth=2)
+    plt.plot(hours, usd_irt/100, label='دلار/تومان (مقیاس ۱/۱۰۰)', color='blue', linewidth=2)
+    plt.plot(hours, oil_prices, label='نفت (Brent)', color='green', linewidth=2)
+    plt.xlabel('ساعت')
+    plt.ylabel('قیمت')
+    plt.title('نمودار قیمت‌های لحظه‌ای')
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
 
-def save_pending(items):
-    with open('pending_queue.json', 'w') as f:
-        json.dump(items, f)
+    chart_path = "price_chart.png"
+    plt.savefig(chart_path, dpi=150)
+    plt.close()
+    return chart_path
 
-# ================= MAIN =================
-def run():
+def send_price_chart():
+    chart_path = generate_price_chart()
+    caption = "📊 <b>نمودار قیمت‌ها</b>\nطلا، دلار و نفت در ۲۴ ساعت گذشته"
+    with open(chart_path, 'rb') as photo:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+        files = {'photo': photo}
+        data = {'chat_id': CHANNEL_ID, 'caption': caption, 'parse_mode': 'HTML'}
+        resp = requests.post(url, data=data, files=files)
+        print(f"Chart sent: {resp.status_code}")
+    os.remove(chart_path)
+
+# ================= WEEKLY SUMMARY =================
+def weekly_summary():
+    # Mock data – replace with real weekly change calculation later
+    summary = (
+        "📅 <b>خلاصه هفتگی بازار</b>\n\n"
+        "🟡 طلا: +۲.۱٪\n"
+        "💵 دلار/تومان: -۰.۵٪\n"
+        "🛢️ نفت: +۰.۸٪\n\n"
+        "بازارها این هفته تحت تأثیر تصمیم فدرال رزرو و داده‌های تورم قرار گرفتند."
+    )
+    send_to_telegram(summary)
+
+# ================= ECONOMIC CALENDAR =================
+def economic_calendar():
+    # Hardcoded upcoming events (example)
+    events = [
+        ("امروز", "CPI آمریکا", "ساعت ۱۶:۳۰"),
+        ("فردا", "نرخ بیکاری", "ساعت ۱۷:۰۰"),
+        ("پنج‌شنبه", "نشست فدرال رزرو", "ساعت ۲۱:۳۰"),
+    ]
+    msg = "📅 <b>رویدادهای اقتصادی پیش‌رو</b>\n\n"
+    for day, event, time_ in events:
+        msg += f"▫️ {day}: {event} – {time_}\n"
+    send_to_telegram(msg)
+
+# ================= MAIN NEWS COLLECTION & POSTING =================
+def run_news():
     processed = load_processed()
     pending = load_pending()
 
@@ -341,8 +380,6 @@ def run():
 
     for i, art in enumerate(relevant):
         print(f"\n--- Article {i+1}/{len(relevant)} ---")
-
-        # If image exists, create caption without link; otherwise include link.
         if art.get('image_url'):
             msg = format_message(art, include_link=False)
             send_to_telegram(msg, art['image_url'])
@@ -357,7 +394,41 @@ def run():
             time.sleep(POST_INTERVAL)
 
     save_processed(processed)
-    print("\nRun complete.")
+    print("\nNews run complete.")
 
+# ================= STATE =================
+def load_processed():
+    if os.path.exists('processed_ids.json'):
+        with open('processed_ids.json') as f:
+            return set(json.load(f))
+    return set()
+
+def save_processed(ids):
+    with open('processed_ids.json', 'w') as f:
+        json.dump(list(ids)[-1000:], f)
+
+def load_pending():
+    if os.path.exists('pending_queue.json'):
+        with open('pending_queue.json') as f:
+            data = json.load(f)
+        os.remove('pending_queue.json')
+        return data
+    return []
+
+def save_pending(items):
+    with open('pending_queue.json', 'w') as f:
+        json.dump(items, f)
+
+# ================= MAIN DISPATCHER =================
 if __name__ == "__main__":
-    run()
+    mode = sys.argv[1] if len(sys.argv) > 1 else "news"
+    if mode == "news":
+        run_news()
+    elif mode == "chart":
+        send_price_chart()
+    elif mode == "weekly":
+        weekly_summary()
+    elif mode == "calendar":
+        economic_calendar()
+    else:
+        print("Unknown mode. Use: news, chart, weekly, calendar")
