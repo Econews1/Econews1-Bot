@@ -20,12 +20,12 @@ from matplotlib.patches import FancyBboxPatch
 
 # ================= CONFIGURATION =================
 RSS_FEEDS = [
-    "https://www.forexlive.com/feed/news",
+    "https://www.actionforex.com/feed",             # replacement for ForexLive
     "https://www.fxstreet.com/rss/news",
     "https://www.kitco.com/news/rss",
     "https://oilprice.com/rss/main",
     "https://www.federalreserve.gov/feeds/press_all.xml",
-    "https://www.bls.gov/feed/bls_latest.rss",
+    "https://www.dol.gov/rss/releases.xml",         # replacement for BLS
     "https://www.ecb.europa.eu/rss/press.html",
     "https://www.eia.gov/rss/todayinenergy.xml",
 ]
@@ -611,7 +611,7 @@ def extract_image_url(entry):
                 return link.get('href', '')
     return ''
 
-# ================= FORMAT MESSAGE (WITH OIL SENTIMENT) =================
+# ================= FORMAT MESSAGE (FIXED NO DUPLICATION) =================
 def format_message(article):
     title_en = article['title']
     summary_en = article['summary'][:200]
@@ -638,11 +638,14 @@ def format_message(article):
     else:
         emoji = "📰"
 
-    tldr = persian_summary.split('.')[0] if '.' in persian_summary else persian_summary[:80]
+    # Take only the first sentence as summary and ensure period at end.
+    if '.' in persian_summary:
+        tldr = persian_summary.split('.')[0].strip() + '.'
+    else:
+        tldr = persian_summary.strip() + '.'
 
     msg = f"{emoji} <b>{persian_title}</b>\n"
     msg += f"<i>خلاصه:</i> {tldr}\n\n"
-    msg += persian_summary + "\n\n"
     msg += gold_label
     if oil_label:
         msg += "\n" + oil_label
