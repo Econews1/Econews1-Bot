@@ -1,12 +1,12 @@
-name: Poster
+name: Collector
 
 on:
   schedule:
-    - cron: '*/6 * * * *'
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 jobs:
-  post:
+  collect:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,19 +14,19 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements.txt
-      - name: Post one news
+      - name: Collect news
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
-        run: python bot.py post
+        run: python bot.py collect
       - name: Commit state files
         run: |
           git config --local user.email "bot@users.noreply.github.com"
           git config --local user.name "News Bot"
-          git pull --rebase origin main
           for f in queue.json processed_ids.json last_working_model.txt; do
             [ -f "$f" ] && git add "$f"
           done
-          git diff --staged --quiet || git commit -m "Update bot state"
+          git diff --cached --quiet || git commit -m "Update bot state"
+          git pull --rebase origin main
           git push origin main
