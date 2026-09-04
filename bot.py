@@ -30,7 +30,7 @@ RSS_FEEDS = [
     "https://www.eia.gov/rss/todayinenergy.xml",
 ]
 
-POST_INTERVAL = 10          # seconds (use 360 for production)
+POST_INTERVAL = 360          # seconds (6 minutes for production)
 MAX_POSTS_PER_RUN = 5
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -132,7 +132,6 @@ def fa(text):
 
 # ================= COMPREHENSIVE ECONOMIC GLOSSARY =================
 ECONOMIC_GLOSSARY = {
-    # (Full dictionary from previous code – kept unchanged for brevity in this display)
     'Gold': 'طلا', 'Spot Gold': 'طلا نقدی', 'Gold Bar': 'شمش طلا',
     'Gold Bullion': 'طلای آبشده', 'Gold Coin': 'سکه طلا',
     'Gold Futures': 'قرارداد آتی طلا', 'Gold Reserve': 'ذخایر طلای بانک مرکزی',
@@ -335,11 +334,12 @@ ECONOMIC_GLOSSARY = {
     'Commerzbank': 'کومرتس‌بانک', 'OilPrice.com': 'اویل‌پرایس', 'Reuters': 'رویترز',
     'Bloomberg': 'بلومبرگ', 'CNBC': 'سی‌ان‌بی‌سی', 'FT': 'فایننشال تایمز',
     'WSJ': 'وال‌استریت ژورنال',
+    # Added missing abbreviations
+    'BLS': 'اداره آمار کار آمریکا',
 }
 
 # ================= RESPECTFUL IRAN TERMINOLOGY =================
 IRAN_RESPECT_GLOSSARY = {
-    # (Full dictionary from previous code – kept unchanged)
     'Iranian regime': 'جمهوری اسلامی ایران',
     'Iranian Regime': 'جمهوری اسلامی ایران',
     "Iran's clerical rule": 'نظام جمهوری اسلامی',
@@ -579,8 +579,8 @@ def extract_image_url(entry):
                 return link.get('href', '')
     return ''
 
-# ================= FORMAT MESSAGE =================
-def format_message(article, include_link=True):
+# ================= FORMAT MESSAGE (NO LINK) =================
+def format_message(article, include_link=False):
     title_en = article['title']
     summary_en = article['summary'][:200]
     persian_title = translate_to_persian(title_en)
@@ -605,9 +605,7 @@ def format_message(article, include_link=True):
     msg += persian_summary + "\n\n"
     msg += label
 
-    if include_link and article.get('link'):
-        msg += f"\n\n🔗 <a href='{article['link']}'>مشاهده کامل</a>"
-
+    # No link added (user requested no links)
     return msg
 
 # ================= SEND TO TELEGRAM =================
@@ -653,7 +651,7 @@ COLORS = {
         'text': '#00E5FF'
     },
     'tether': {
-        'line': '#FFA500',   # Orange for clear distinction
+        'line': '#FFA500',   # Orange
         'fill_light': '#FFA50022',
         'fill_dark': '#FFA50000',
         'text': '#FFA500'
@@ -670,7 +668,6 @@ COLORS = {
 }
 
 def _create_gradient_fill(ax, x, y, line_color):
-    """Create a smooth gradient fill under a line chart."""
     cmap = LinearSegmentedColormap.from_list(
         'gradient',
         [(0, mcolors.to_rgba(line_color, 0.0)),
@@ -690,7 +687,6 @@ def _create_gradient_fill(ax, x, y, line_color):
     im.set_clip_path(clip_path)
 
 def _style_axis_professional(ax, font_prop):
-    """Apply professional axis styling."""
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['left'].set_color('#555555')
@@ -712,20 +708,13 @@ def _style_axis_professional(ax, font_prop):
             label.set_fontproperties(font_prop)
 
 def _add_price_annotation(ax, x, y, price, color, font_prop, currency='$', label=None):
-    """
-    Add a price annotation box at the last data point.
-    If label is provided, the box shows two lines: label (bold) on top, price below.
-    """
-    # Draw a short horizontal line from the last point
     ax.plot([x[-1], x[-1] + 0.5], [y[-1], y[-1]],
             color=color, linewidth=1, linestyle='-', alpha=0.7)
 
     price_text = f"{price:,.0f}{currency}"
     price_text_fa = to_persian_digits(price_text)
 
-    # Build the annotation text
     if label:
-        # Two-line text: label (bold) and price
         annotation_text = f"{label}\n{price_text_fa}"
     else:
         annotation_text = price_text_fa
@@ -733,7 +722,7 @@ def _add_price_annotation(ax, x, y, price, color, font_prop, currency='$', label
     ax.annotate(
         annotation_text,
         xy=(x[-1], y[-1]),
-        xytext=(15, 0),               # offset to the right
+        xytext=(15, 0),
         textcoords='offset points',
         color='white',
         fontsize=11,
@@ -745,11 +734,10 @@ def _add_price_annotation(ax, x, y, price, color, font_prop, currency='$', label
             edgecolor='none'
         ),
         fontproperties=font_prop if font_prop else None,
-        linespacing=1.5               # add spacing between label and price
+        linespacing=1.5
     )
 
 def _add_change_badge(ax, y_data, font_prop):
-    """Add a simple +/- percentage badge below the title."""
     if len(y_data) < 2:
         return
 
@@ -765,9 +753,8 @@ def _add_change_badge(ax, y_data, font_prop):
     change_text = f"{sign}{abs(change):.1f}%"
     change_text_fa = to_persian_digits(change_text)
 
-    # Position below title (in axes coordinates)
     ax.text(
-        0.5, 0.92,   # centered horizontally, below title (title is at ~1.0)
+        0.5, 0.92,
         change_text_fa,
         transform=ax.transAxes,
         fontsize=13,
@@ -779,7 +766,6 @@ def _add_change_badge(ax, y_data, font_prop):
     )
 
 def _abbreviate_y_axis_for_usd(ax):
-    """Convert y-axis labels to Persian thousands (هزار تومان)."""
     y_ticks = ax.get_yticks()
     new_labels = []
     for tick in y_ticks:
@@ -789,7 +775,7 @@ def _abbreviate_y_axis_for_usd(ax):
         else:
             label = to_persian_digits(str(int(tick)))
         new_labels.append(label)
-    ax.set_yticks(y_ticks)  # ensure fixed locator
+    ax.set_yticks(y_ticks)
     ax.set_yticklabels(new_labels)
 
 def generate_professional_gold_chart(font_prop):
@@ -800,16 +786,16 @@ def generate_professional_gold_chart(font_prop):
     ax = fig.add_subplot(111)
     ax.set_facecolor('#0d1117')
 
-    ax.plot(hours, gold_prices, color=COLORS['gold']['line'], 
+    ax.plot(hours, gold_prices, color=COLORS['gold']['line'],
             linewidth=2.5, zorder=3, solid_capstyle='round')
 
     _create_gradient_fill(ax, hours, gold_prices, COLORS['gold']['line'])
-    ax.fill_between(hours, gold_prices, min(gold_prices) - 20, 
+    ax.fill_between(hours, gold_prices, min(gold_prices) - 20,
                      alpha=0.1, color=COLORS['gold']['line'], zorder=2)
 
     _style_axis_professional(ax, font_prop)
 
-    _add_price_annotation(ax, hours, gold_prices, gold_prices[-1], 
+    _add_price_annotation(ax, hours, gold_prices, gold_prices[-1],
                           COLORS['gold']['line'], font_prop, currency='$')
     _add_change_badge(ax, gold_prices, font_prop)
 
@@ -827,7 +813,6 @@ def generate_professional_gold_chart(font_prop):
     y_padding = (max(gold_prices) - min(gold_prices)) * 0.15
     ax.set_ylim(min(gold_prices) - y_padding, max(gold_prices) + y_padding)
 
-    # Use default y-axis labels (no abbreviation for gold)
     y_ticks = ax.get_yticks()
     y_labels = [to_persian_digits(f"{tick:,.0f}") for tick in y_ticks]
     ax.set_yticks(y_ticks)
@@ -836,7 +821,7 @@ def generate_professional_gold_chart(font_prop):
     plt.tight_layout()
 
     path = "gold_chart.png"
-    plt.savefig(path, dpi=150, facecolor='#0d1117', 
+    plt.savefig(path, dpi=150, facecolor='#0d1117',
                 bbox_inches='tight', pad_inches=0.2)
     plt.close()
     return path
@@ -849,16 +834,16 @@ def generate_professional_oil_chart(font_prop):
     ax = fig.add_subplot(111)
     ax.set_facecolor('#0d1117')
 
-    ax.plot(hours, oil_prices, color=COLORS['oil']['line'], 
+    ax.plot(hours, oil_prices, color=COLORS['oil']['line'],
             linewidth=2.5, zorder=3, solid_capstyle='round')
 
     _create_gradient_fill(ax, hours, oil_prices, COLORS['oil']['line'])
-    ax.fill_between(hours, oil_prices, min(oil_prices) - 2, 
+    ax.fill_between(hours, oil_prices, min(oil_prices) - 2,
                      alpha=0.1, color=COLORS['oil']['line'], zorder=2)
 
     _style_axis_professional(ax, font_prop)
 
-    _add_price_annotation(ax, hours, oil_prices, oil_prices[-1], 
+    _add_price_annotation(ax, hours, oil_prices, oil_prices[-1],
                           COLORS['oil']['line'], font_prop, currency='$')
     _add_change_badge(ax, oil_prices, font_prop)
 
@@ -884,7 +869,7 @@ def generate_professional_oil_chart(font_prop):
     plt.tight_layout()
 
     path = "oil_chart.png"
-    plt.savefig(path, dpi=150, facecolor='#0d1117', 
+    plt.savefig(path, dpi=150, facecolor='#0d1117',
                 bbox_inches='tight', pad_inches=0.2)
     plt.close()
     return path
@@ -909,7 +894,6 @@ def generate_professional_usd_chart(font_prop):
 
     _style_axis_professional(ax, font_prop)
 
-    # Pass label parameter to show name inside the price box
     _add_price_annotation(ax, hours, usd_toman, usd_toman[-1],
                           COLORS['usd']['line'], font_prop,
                           currency=' ت', label=fa('دلار'))
@@ -934,7 +918,6 @@ def generate_professional_usd_chart(font_prop):
     ax.set_ylim(min(usd_toman + tether_toman) - y_padding,
                 max(usd_toman + tether_toman) + y_padding)
 
-    # Use Persian thousands abbreviation for USD chart y-axis
     _abbreviate_y_axis_for_usd(ax)
 
     plt.tight_layout()
