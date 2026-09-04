@@ -21,6 +21,8 @@ RSS_FEEDS = [
 POST_INTERVAL = 10      # seconds (use 360 for production)
 MAX_POSTS_PER_RUN = 5
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
 
 # Known non-reasoning models to try first
 PREFERRED_MODELS = [
@@ -75,10 +77,8 @@ def extract_translation(raw_output):
     """Remove any thinking block and return only the final translation."""
     if not raw_output:
         return ""
-    # If there is a closing think tag, take text after it
     if '</think>' in raw_output:
         raw_output = raw_output.split('</think>')[-1].strip()
-    # Also remove any leading <think> block (in case of malformed output)
     raw_output = re.sub(r'^<think>.*?(?=<think>|$)', '', raw_output, flags=re.DOTALL).strip()
     return raw_output
 
@@ -107,7 +107,7 @@ def try_translate_with_model(text, model):
             {"role": "system", "content": "You are a professional financial translator. Translate the following financial news text to Persian. Output only the translation."},
             {"role": "user", "content": text}
         ],
-        "max_tokens": 8000,   # High enough for reasoning models
+        "max_tokens": 8000,
         "temperature": 0.3
     }
     try:
@@ -196,7 +196,29 @@ def sentiment_label(score):
     else:
         return "اثر بر طلا: خنثی ➖"
 
-def format_message(article):
+def extract_image_url(entry):
+    """Try to extract an image URL from an RSS entry."""
+    # Check media_content (common in RSS 2.0)
+    if hasattr(entry, 'media_content') and entry.media_content:
+        for media in entry.media_content:
+            if media.get('medium') == 'image' or media.get('type', '').startswith('image/'):
+                return media.get('url', '')
+    # Check enclosures (often used for images)
+    if hasattr(entry, 'enclosures') and entry.enclosures:
+        for enc in entry.enclosures:
+            if enc.get('type', '').startswith('image/'):
+                return enc.get('href', '')
+    # Check links (some feeds put image in links with rel='enclosure')
+    if hasattr(entry, 'links'):
+        for link in entry.links:
+            if link.get('rel') == 'enclosure' and link.get('type', '').startswith('image/'):
+                return link.get('href', '')
+            if link.get('type', '').startswith('image/'):
+                return link.get('href', '')
+    return ''
+
+def format_message(article, include_link=True):
+    """Create Persian message; if include_link is False, omit the article URL."""
     title_en = article['title']
     summary_en = article['summary'][:200]
     persian_title = translate_to_persian(title_en)
@@ -206,9 +228,55 @@ def format_message(article):
 
     msg = f"📰 <b>{persian_title}</b>\n\n"
     msg += f"{persian_summary}\n\n"
-    msg += f"{label}\n\n"
-    msg += f"🔗 <a href='{article['link']}'>مشاهده کامل</a>"
+    msg += f"{label}"
+
+    if include_link:
+        msg += f"\n\n🔗 <a href='{article['link']}'>مشاهده کامل</a>"
+
     return msg
+
+def send_to_telegram(message, image_url=None):
+    """Send message (or photo) to Telegram channel."""
+    if not TELEGRAM_BOT_TOKEN or not CHANNEL_ID:
+        print("Telegram not configured. Printing message:")
+        print(message)
+        return
+
+    if image_url:
+        # Send photo with caption (no article link in caption)
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+        payload = {
+            'chat_id': CHANNEL_ID,
+            'photo': image_url,
+            'caption': message,
+            'parse_mode': 'HTML'
+        }
+        try:
+            resp = requests.post(url, json=payload, timeout=30)
+            if resp.status_code == 200:
+                print("Photo sent successfully.")
+                return
+            else:
+                print(f"sendPhoto failed ({resp.status_code}): {resp.text[:200]}. Falling back to text.")
+        except Exception as e:
+            print(f"sendPhoto exception: {e}. Falling back to text.")
+
+    # Send text message (with link preview)
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        'chat_id': CHANNEL_ID,
+        'text': message,
+        'parse_mode': 'HTML',
+        'disable_web_page_preview': False
+    }
+    try:
+        resp = requests.post(url, json=payload, timeout=30)
+        if resp.status_code == 200:
+            print("Message sent successfully.")
+        else:
+            print(f"sendMessage failed ({resp.status_code}): {resp.text[:200]}")
+    except Exception as e:
+        print(f"sendMessage exception: {e}")
 
 # ================= STATE =================
 def load_processed():
@@ -244,11 +312,13 @@ def run():
         try:
             feed = feedparser.parse(url)
             for entry in feed.entries[:3]:
+                image_url = extract_image_url(entry)
                 all_articles.append({
                     'id': entry.get('link', ''),
                     'title': entry.get('title', ''),
                     'summary': clean_html(entry.get('summary', '')),
                     'link': entry.get('link', ''),
+                    'image_url': image_url,
                 })
         except Exception as e:
             print(f"Error fetching {url}: {e}")
@@ -271,8 +341,14 @@ def run():
 
     for i, art in enumerate(relevant):
         print(f"\n--- Article {i+1}/{len(relevant)} ---")
-        msg = format_message(art)
-        print(msg)
+
+        # If image exists, create caption without link; otherwise include link.
+        if art.get('image_url'):
+            msg = format_message(art, include_link=False)
+            send_to_telegram(msg, art['image_url'])
+        else:
+            msg = format_message(art, include_link=True)
+            send_to_telegram(msg)
 
         processed.add(art['id'])
 
