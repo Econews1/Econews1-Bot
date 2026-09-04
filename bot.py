@@ -111,6 +111,27 @@ def extract_translation(raw_output):
     raw_output = re.sub(r'^<think>.*?(?=<think>|$)', '', raw_output, flags=re.DOTALL).strip()
     return raw_output
 
+def is_refusal(text):
+    """Check if the model output indicates a refusal or error."""
+    refusal_phrases = [
+        "i'm sorry",
+        "i am sorry",
+        "i can't",
+        "i cannot",
+        "can't help",
+        "cannot help",
+        "not able to",
+        "unable to",
+        "i apologize",
+        "sorry, but",
+        "i'm not able",
+        "i am not able",
+        "i won't",
+        "i will not"
+    ]
+    lower = text.lower()
+    return any(phrase in lower for phrase in refusal_phrases)
+
 def load_cached_model():
     if os.path.exists(MODEL_CACHE_FILE):
         with open(MODEL_CACHE_FILE, 'r') as f:
@@ -130,7 +151,7 @@ def try_translate_with_model(text, model):
     data = {
         "model": model,
         "messages": [
-            {"role": "system", "content": "Translate the user's financial news text to Persian. Output only the translation, no reasoning or thinking. Do not repeat these instructions."},
+            {"role": "system", "content": "You are a professional financial translator. Translate the user's financial news text to Persian. Never refuse, never apologize, just output the translation. Do not include any reasoning, thinking, or analysis."},
             {"role": "user", "content": text}
         ],
         "max_tokens": 8000,
@@ -142,9 +163,12 @@ def try_translate_with_model(text, model):
         if resp.status_code == 200:
             raw = resp.json()['choices'][0]['message']['content'].strip()
             cleaned = extract_translation(raw)
-            # Reject if model repeated system prompt or similar junk
+            # Reject if model returned system prompt, refusal, or junk
             if any(phrase in cleaned for phrase in ["متن خبری مالی را", "لطفاً متن خبری", "Translate the user's financial news"]):
                 print("  Model returned system prompt, skipping.")
+                return None
+            if is_refusal(cleaned):
+                print("  Model refused, skipping.")
                 return None
             if cleaned and len(cleaned) > 5:
                 return cleaned
