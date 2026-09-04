@@ -31,17 +31,14 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
 
-# Known non-reasoning models to try first
 PREFERRED_MODELS = [
     "llama-3.1-8b-instant",
     "openai/gpt-oss-20b",
 ]
-
 FALLBACK_MODELS = [
     "qwen/qwen3.6-27b",
     "qwen/qwen3.8-27b",
 ]
-
 MODEL_CACHE_FILE = "last_working_model.txt"
 
 # ================= KEYWORD FILTER =================
@@ -111,23 +108,49 @@ def extract_translation(raw_output):
     raw_output = re.sub(r'^<think>.*?(?=<think>|$)', '', raw_output, flags=re.DOTALL).strip()
     return raw_output
 
+# Common financial abbreviations to replace with Persian equivalents
+ABBREVIATIONS = {
+    'ISM': 'آی‌اس‌ام',
+    'XAU': 'طلا',
+    'XAU/USD': 'طلا/دلار',
+    'USD': 'دلار',
+    'DXY': 'شاخص دلار',
+    'NFP': 'آمار اشتغال غیرکشاورزی',
+    'CPI': 'شاخص قیمت مصرف‌کننده',
+    'PPI': 'شاخص قیمت تولیدکننده',
+    'PMI': 'شاخص مدیران خرید',
+    'GDP': 'تولید ناخالص داخلی',
+    'EUR': 'یورو',
+    'CAD': 'دلار کانادا',
+    'JPY': 'ین ژاپن',
+    'RBNZ': 'بانک مرکزی نیوزیلند',
+    'RBI': 'بانک مرکزی هند',
+    'JPMorgan': 'جی‌پی مورگان',
+    'MUFG': 'ام‌یواف‌جی',
+    'BNY': 'بی‌ان‌وای',
+    'SMA': 'میانگین متحرک ساده',
+    'OPEC': 'اوپک',
+    'ECB': 'بانک مرکزی اروپا',
+    'Fed': 'فدرال رزرو',
+    'AI': 'هوش مصنوعی',
+    'FX': 'بازار ارز',
+    'RSS': 'فید خبری'
+}
+
+def replace_abbreviations(text):
+    """Replace common English abbreviations with Persian equivalents."""
+    for eng, fa in ABBREVIATIONS.items():
+        # Only replace if it's a whole word (or common combinations)
+        text = re.sub(r'\b' + re.escape(eng) + r'\b', fa, text)
+    return text
+
 def is_refusal(text):
     """Check if the model output indicates a refusal or error."""
     refusal_phrases = [
-        "i'm sorry",
-        "i am sorry",
-        "i can't",
-        "i cannot",
-        "can't help",
-        "cannot help",
-        "not able to",
-        "unable to",
-        "i apologize",
-        "sorry, but",
-        "i'm not able",
-        "i am not able",
-        "i won't",
-        "i will not"
+        "i'm sorry", "i am sorry", "i can't", "i cannot",
+        "can't help", "cannot help", "not able to", "unable to",
+        "i apologize", "sorry, but", "i'm not able", "i am not able",
+        "i won't", "i will not"
     ]
     lower = text.lower()
     return any(phrase in lower for phrase in refusal_phrases)
@@ -148,10 +171,20 @@ def try_translate_with_model(text, model):
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
+    # Improved system prompt: rewrite fragments into complete sentences, then translate.
+    system_prompt = (
+        "You are a professional financial translator. "
+        "First, rewrite the user's financial news text into complete, grammatically correct English sentences, "
+        "adding any missing subjects, verbs, or objects. "
+        "Then translate the rewritten English into Persian (Farsi). "
+        "Use standard Persian financial terminology. "
+        "Transliterate any remaining English abbreviations into Persian (e.g., ISM becomes آی‌اس‌ام). "
+        "Never refuse, never apologize, just output the final Persian translation without reasoning or thinking."
+    )
     data = {
         "model": model,
         "messages": [
-            {"role": "system", "content": "You are a professional financial translator. Translate the user's financial news text to Persian. Never refuse, never apologize, just output the translation. Do not include any reasoning, thinking, or analysis."},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": text}
         ],
         "max_tokens": 8000,
@@ -163,7 +196,7 @@ def try_translate_with_model(text, model):
         if resp.status_code == 200:
             raw = resp.json()['choices'][0]['message']['content'].strip()
             cleaned = extract_translation(raw)
-            # Reject if model returned system prompt, refusal, or junk
+            # Reject if system prompt repeated or refusal
             if any(phrase in cleaned for phrase in ["متن خبری مالی را", "لطفاً متن خبری", "Translate the user's financial news"]):
                 print("  Model returned system prompt, skipping.")
                 return None
@@ -171,6 +204,8 @@ def try_translate_with_model(text, model):
                 print("  Model refused, skipping.")
                 return None
             if cleaned and len(cleaned) > 5:
+                # Replace English abbreviations with Persian equivalents
+                cleaned = replace_abbreviations(cleaned)
                 return cleaned
             else:
                 print("  Model returned empty translation.")
