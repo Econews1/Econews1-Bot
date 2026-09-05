@@ -51,18 +51,23 @@ RSS_FEEDS = [
     "https://tass.com/rss/v2.xml",
     "https://www.themoscowtimes.com/rss/news",
 
-    # China Specialized
+    # China/Asia
     "https://scmp.com/rss/4/feed",
-
-    # Asia/Japan
     "https://rss.dw.com/rdf/rss-en-asia",
 
-    # Middle East / Gulf
+    # Middle East
     "https://www.france24.com/en/middle-east/rss",
+
+    # NEW Additional Feeds
+    "https://www.investing.com/rss/news_25.rss",        # Economic news
+    "https://www.marketwatch.com/rss/topstories",       # US markets, dollar, oil
+    "https://feeds.feedburner.com/zerohedge/feed",      # Contrarian market news
+    # Google News search feed (gold/oil/dollar last 24h)
+    "https://news.google.com/rss/search?q=gold+OR+oil+OR+dollar+when:1d&hl=en-US&gl=US&ceid=US:en",
 ]
 
 POST_INTERVAL = 360          # 6 minutes
-MAX_POSTS_PER_RUN = 5
+MAX_POSTS_PER_RUN = 8        # increased from 5 to 8
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
@@ -77,18 +82,25 @@ FALLBACK_MODELS = [
 ]
 MODEL_CACHE_FILE = "last_working_model.txt"
 
-# ================= KEYWORD FILTER =================
+# ================= KEYWORD FILTER (Expanded) =================
 KEYWORDS = [
     'gold', 'xau', 'dollar', 'dxy', 'fed', 'rate', 'inflation',
     'cpi', 'oil', 'crude', 'brent', 'wti', 'opec', 'gdp', 'nfp',
-    'treasury', 'yield', 'sanction', 'geopolitical', 'recession'
+    'treasury', 'yield', 'sanction', 'geopolitical', 'recession',
+    # Additional terms
+    'interest rate decision', 'monetary policy', 'central bank',
+    'bond yields', 'stock market', 'equities', 'forex', 'currency',
+    'energy prices', 'natural gas', 'inflation data', 'cpi data',
+    'jobless claims', 'trade deficit', 'budget', 'eurozone',
+    'emerging markets', 'geopolitical crisis'
 ]
 
-# Add Russian keywords (common financial terms)
+# Russian keywords expanded
 RUSSIAN_KEYWORDS = [
     'золото', 'доллар', 'нефть', 'рубль', 'инфляция', 'ставка', 'фрс',
     'центральный банк', 'санкции', 'ввп', 'безработица', 'доходность',
-    'опек', 'энергетический кризис'
+    'опек', 'энергетический кризис', 'газ', 'биржа', 'валюта', 'центробанк',
+    'процентная ставка', 'фондовый рынок'
 ]
 
 IMPORTANT_COUNTRIES = [
@@ -1172,7 +1184,7 @@ def collect_news():
             resp = requests.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
             if resp.status_code == 200:
                 feed = feedparser.parse(resp.content)
-                for entry in feed.entries[:3]:
+                for entry in feed.entries[:5]:  # increased from 3 to 5
                     image_url, video_url = extract_media_urls(entry)
                     all_articles.append({
                         'id': entry.get('link', ''),
