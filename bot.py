@@ -789,13 +789,13 @@ def format_message(article):
     else:
         emoji = "📰"
 
-    # Build message
+    # Build message with proper blank line before sentiment label
     msg = f"{emoji} <b>{persian_title}</b>\n"
     if main_summary:
         msg += "\n" + main_summary
     if extra_details:
         msg += "\n" + extra_details
-    msg += "\n" + gold_label
+    msg += "\n\n" + gold_label          # two newlines create an empty line
     if oil_label:
         msg += "\n" + oil_label
 
