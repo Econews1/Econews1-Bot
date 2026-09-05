@@ -20,14 +20,21 @@ from matplotlib.patches import FancyBboxPatch
 
 # ================= CONFIGURATION =================
 RSS_FEEDS = [
-    "https://www.actionforex.com/feed",             # replacement for ForexLive
+    # Tier 1: Core financial sources
+    "https://www.actionforex.com/feed",
     "https://www.fxstreet.com/rss/news",
     "https://www.kitco.com/news/rss",
     "https://oilprice.com/rss/main",
     "https://www.federalreserve.gov/feeds/press_all.xml",
-    "https://www.dol.gov/rss/releases.xml",         # replacement for BLS
     "https://www.ecb.europa.eu/rss/press.html",
     "https://www.eia.gov/rss/todayinenergy.xml",
+
+    # Tier 1: Global news agencies
+    "https://rss.dw.com/rdf/rss-en-world",          # German perspective, Iran/Ukraine
+    "https://www.france24.com/en/rss",              # French perspective, Middle East
+    "https://www.aljazeera.com/xml/rss/all.xml",    # Middle East, global politics
+    "https://www.theguardian.com/world/rss",        # UK perspective, world affairs
+    "https://feeds.bbci.co.uk/news/rss.xml",        # BBC world news
 ]
 
 POST_INTERVAL = 360          # seconds (6 minutes for production)
@@ -1144,17 +1151,11 @@ def collect_news():
         if art['id'] in processed:
             continue
         text = (art['title'] + ' ' + art['summary']).lower()
-        # Filter: keep if contains any KEYWORDS
         if not any(kw in text for kw in KEYWORDS):
             continue
-        # Additional filter: prioritize G20 or Iran or critical events
-        # (all articles that pass KEYWORDS but low priority will be lower in sorting)
         relevant.append(art)
 
-    # Sort by priority score descending
     relevant_sorted = sorted(relevant, key=priority_score, reverse=True)
-
-    # Select top N
     new_articles = relevant_sorted[:MAX_POSTS_PER_RUN]
 
     for art in new_articles:
@@ -1179,7 +1180,6 @@ def post_one():
         msg = format_message(article)
         send_to_telegram(msg, article['image_url'])
     elif article.get('video_url'):
-        # For video, send message with link preview
         msg = format_message(article)
         send_to_telegram(msg, article['video_url'])
     else:
