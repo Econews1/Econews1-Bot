@@ -53,6 +53,23 @@ KEYWORDS = [
     'treasury', 'yield', 'sanction', 'geopolitical', 'recession'
 ]
 
+# G20 countries + Iran + important economies
+IMPORTANT_COUNTRIES = [
+    'united states', 'us', 'usa', 'china', 'japan', 'germany', 'france',
+    'uk', 'united kingdom', 'britain', 'italy', 'canada', 'australia',
+    'south korea', 'russia', 'india', 'brazil', 'mexico', 'indonesia',
+    'turkey', 'saudi arabia', 'uae', 'iran', 'israel', 'south africa',
+    'europe', 'eurozone', 'european union', 'eu'
+]
+
+CRITICAL_TERMS = [
+    'sanction', 'war', 'conflict', 'attack', 'coup', 'nuclear', 'oil supply',
+    'opec', 'embargo', 'geopolitical', 'central bank', 'fed', 'fomc', 'ecb',
+    'rate hike', 'rate cut', 'inflation', 'recession', 'gdp', 'unemployment',
+    'default', 'debt', 'trade war', 'currency crisis', 'stock crash',
+    'energy crisis', 'pipeline', 'drone', 'missile', 'election', 'political crisis'
+]
+
 BULLISH = ['rate cut', 'weak dollar', 'geopolitical tension', 'recession',
            'inflation', 'safe haven', 'central bank buying', 'stimulus',
            'dovish', 'crisis', 'war']
@@ -467,23 +484,26 @@ def save_cached_model(model_id):
     with open(MODEL_CACHE_FILE, 'w') as f:
         f.write(model_id)
 
-def try_translate_with_model(text, model):
+def try_translate_with_model(text, model, custom_prompt=None):
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
-    system_prompt = (
-        "You are a professional financial translator. "
-        "First, rewrite the user's financial news text into complete, grammatically correct English sentences. "
-        "Then translate the rewritten English into Persian (Farsi). "
-        "Use standard Persian financial terminology. "
-        "Convert all Western numerals (0-9) to Persian numerals (۰-۹) in the Persian output. "
-        "If the text mentions the Iranian government or officials, use respectful language: "
-        "refer to the 'Islamic Republic of Iran' as 'جمهوری اسلامی ایران', "
-        "and Iranian officials as 'مقامات ایرانی' or 'دولت ایران'. "
-        "Never refuse, never apologize, just output the final Persian translation without reasoning or thinking."
-    )
+    if custom_prompt:
+        system_prompt = custom_prompt
+    else:
+        system_prompt = (
+            "You are a professional financial translator. "
+            "First, rewrite the user's financial news text into complete, grammatically correct English sentences. "
+            "Then translate the rewritten English into Persian (Farsi). "
+            "Use standard Persian financial terminology. "
+            "Convert all Western numerals (0-9) to Persian numerals (۰-۹) in the Persian output. "
+            "If the text mentions the Iranian government or officials, use respectful language: "
+            "refer to the 'Islamic Republic of Iran' as 'جمهوری اسلامی ایران', "
+            "and Iranian officials as 'مقامات ایرانی' or 'دولت ایران'. "
+            "Never refuse, never apologize, just output the final Persian translation without reasoning or thinking."
+        )
     data = {
         "model": model,
         "messages": [
@@ -519,25 +539,25 @@ def try_translate_with_model(text, model):
         print(f"  Model {model} exception: {e}")
         return None
 
-def translate_to_persian(text):
+def translate_to_persian(text, custom_prompt=None):
     if not GROQ_API_KEY:
         return text
     cached = load_cached_model()
     if cached:
         print(f"Trying cached model: {cached}")
-        result = try_translate_with_model(text, cached)
+        result = try_translate_with_model(text, cached, custom_prompt)
         if result:
             return result
         else:
             if os.path.exists(MODEL_CACHE_FILE):
                 os.remove(MODEL_CACHE_FILE)
     for model in PREFERRED_MODELS:
-        result = try_translate_with_model(text, model)
+        result = try_translate_with_model(text, model, custom_prompt)
         if result:
             save_cached_model(model)
             return result
     for model in FALLBACK_MODELS:
-        result = try_translate_with_model(text, model)
+        result = try_translate_with_model(text, model, custom_prompt)
         if result:
             save_cached_model(model)
             return result
@@ -548,11 +568,57 @@ def translate_to_persian(text):
         return 'qwen' not in lower and 'reason' not in lower
     sorted_models = sorted(active_models, key=lambda m: not is_preferred(m))
     for model in sorted_models:
-        result = try_translate_with_model(text, model)
+        result = try_translate_with_model(text, model, custom_prompt)
         if result:
             save_cached_model(model)
             return result
     return text
+
+def translate_summary_to_persian(title_en, summary_en):
+    if not summary_en:
+        return ""
+    prompt = (
+        "You are a professional financial news writer. "
+        "Based on the title and the provided summary, write a concise Persian summary (2-3 sentences max) that explains the main event, the country/actor involved, key numbers, and why it happened. "
+        "Do NOT repeat the title. Use standard Persian financial terminology. Convert all numbers to Persian digits. "
+        "If the summary contains no extra details, just write a one-sentence summary that adds context or the country name. "
+        "Never refuse, never apologize, just output the final Persian summary."
+    )
+    user_content = f"Title: {title_en}\nSummary: {summary_en}"
+    return translate_with_custom_prompt(prompt, user_content)
+
+def translate_with_custom_prompt(system_prompt, user_content):
+    if not GROQ_API_KEY:
+        return ""
+    cached = load_cached_model()
+    if cached:
+        result = try_translate_with_model(user_content, cached, system_prompt)
+        if result:
+            return result
+        else:
+            if os.path.exists(MODEL_CACHE_FILE):
+                os.remove(MODEL_CACHE_FILE)
+    for model in PREFERRED_MODELS:
+        result = try_translate_with_model(user_content, model, system_prompt)
+        if result:
+            save_cached_model(model)
+            return result
+    for model in FALLBACK_MODELS:
+        result = try_translate_with_model(user_content, model, system_prompt)
+        if result:
+            save_cached_model(model)
+            return result
+    active_models = get_groq_models()
+    def is_preferred(m):
+        lower = m.lower()
+        return 'qwen' not in lower and 'reason' not in lower
+    sorted_models = sorted(active_models, key=lambda m: not is_preferred(m))
+    for model in sorted_models:
+        result = try_translate_with_model(user_content, model, system_prompt)
+        if result:
+            save_cached_model(model)
+            return result
+    return ""
 
 # ================= SENTIMENT =================
 def score_sentiment(text):
@@ -593,42 +659,120 @@ def oil_sentiment_label(score):
     else:
         return "اثر بر نفت: خنثی ➖"
 
-# ================= IMAGE EXTRACTION =================
-def extract_image_url(entry):
+# ================= MEDIA EXTRACTION =================
+def extract_media_urls(entry):
+    """Extract image and video URLs from RSS entry."""
+    image_url = ""
+    video_url = ""
+    # media_content
     if hasattr(entry, 'media_content') and entry.media_content:
         for media in entry.media_content:
-            if media.get('medium') == 'image' or media.get('type', '').startswith('image/'):
-                return media.get('url', '')
+            mtype = media.get('type', '')
+            if media.get('medium') == 'image' or mtype.startswith('image/'):
+                if not image_url:
+                    image_url = media.get('url', '')
+            elif media.get('medium') == 'video' or mtype.startswith('video/'):
+                if not video_url:
+                    video_url = media.get('url', '')
+    # enclosures
     if hasattr(entry, 'enclosures') and entry.enclosures:
         for enc in entry.enclosures:
-            if enc.get('type', '').startswith('image/'):
-                return enc.get('href', '')
+            etype = enc.get('type', '')
+            if etype.startswith('image/') and not image_url:
+                image_url = enc.get('href', '')
+            elif etype.startswith('video/') and not video_url:
+                video_url = enc.get('href', '')
+    # links
     if hasattr(entry, 'links'):
         for link in entry.links:
-            if link.get('rel') == 'enclosure' and link.get('type', '').startswith('image/'):
-                return link.get('href', '')
-            if link.get('type', '').startswith('image/'):
-                return link.get('href', '')
-    return ''
+            ltype = link.get('type', '')
+            if link.get('rel') == 'enclosure' and ltype.startswith('image/') and not image_url:
+                image_url = link.get('href', '')
+            elif link.get('rel') == 'enclosure' and ltype.startswith('video/') and not video_url:
+                video_url = link.get('href', '')
+            elif ltype.startswith('image/') and not image_url:
+                image_url = link.get('href', '')
+            elif ltype.startswith('video/') and not video_url:
+                video_url = link.get('href', '')
+    return image_url, video_url
 
-# ================= FORMAT MESSAGE (SMART CONDITIONAL SUMMARY) =================
+# ================= PRIORITY SCORING =================
+def priority_score(article):
+    score = 0
+    text = (article.get('title', '') + ' ' + article.get('summary', '')).lower()
+    # Media priority
+    if article.get('video_url'):
+        score += 20
+    elif article.get('image_url'):
+        score += 15
+    # Detailed content
+    if re.search(r'[۰-۹0-9]', text):
+        score += 5
+    if len(article.get('summary', '')) > 100:
+        score += 3
+    # Important countries
+    if any(country in text for country in IMPORTANT_COUNTRIES):
+        score += 10
+    # Critical terms (very high)
+    if any(term in text for term in CRITICAL_TERMS):
+        score += 12
+    # Sentiment effect
+    gold_score = score_sentiment(text)
+    oil_score = score_oil_sentiment(text) if any(kw in text for kw in ['oil', 'crude', 'brent', 'wti', 'opec', 'petroleum', 'energy']) else 0
+    if abs(gold_score) >= 1 or abs(oil_score) >= 1:
+        score += 8
+    # High-impact keywords
+    high_impact = ['fed', 'fomc', 'ecb', 'boj', 'boe', 'rate hike', 'rate cut', 'inflation', 'cpi',
+                   'nfp', 'gdp', 'unemployment', 'opec', 'sanctions', 'war', 'geopolitical']
+    if any(kw in text for kw in high_impact):
+        score += 6
+    return score
+
+# ================= FORMAT MESSAGE (NEW STYLE) =================
 def format_message(article):
-    title_en = article['title']
-    summary_en = article['summary'][:200]
+    title_en = article.get('title', '')
+    summary_en = article.get('summary', '')[:200]
     persian_title = translate_to_persian(title_en)
-    full_persian_summary = translate_to_persian(summary_en)
 
-    gold_score = score_sentiment(title_en + ' ' + summary_en)
+    # Generate rich summary
+    persian_summary = translate_summary_to_persian(title_en, summary_en) if summary_en else ""
+
+    # Check if summary is too similar to title (normalized)
+    if persian_summary and title_en:
+        t1 = re.sub(r'[^\w\s]', '', persian_title)
+        t2 = re.sub(r'[^\w\s]', '', persian_summary)
+        if len(t1) > 0 and len(t2) > 0:
+            words1 = set(t1.split()[:8])
+            words2 = set(t2.split()[:8])
+            common = len(words1.intersection(words2))
+            similarity = common / max(len(words1), len(words2))
+            if similarity > 0.7:
+                persian_summary = ""
+
+    # Split summary into first sentence and extra details
+    main_summary = ""
+    extra_details = ""
+    if persian_summary:
+        # Use sentence splitting by period or newline
+        parts = [p.strip() for p in re.split(r'[.!?]', persian_summary) if p.strip()]
+        if parts:
+            main_summary = parts[0] + '.'
+            if len(parts) > 1:
+                extra_details = '. '.join(parts[1:]) + '.'
+
+    # Sentiments
+    text_lower = (title_en + ' ' + summary_en).lower()
+    gold_score = score_sentiment(text_lower)
     gold_label = sentiment_label(gold_score)
 
-    text_lower = (title_en + ' ' + summary_en).lower()
     is_oil_related = any(kw in text_lower for kw in ['oil', 'crude', 'brent', 'wti', 'opec', 'petroleum', 'energy'])
     if is_oil_related:
-        oil_score = score_oil_sentiment(title_en + ' ' + summary_en)
+        oil_score = score_oil_sentiment(text_lower)
         oil_label = oil_sentiment_label(oil_score)
     else:
         oil_label = ""
 
+    # Emoji
     if is_oil_related:
         emoji = "🛢️"
     elif 'dollar' in text_lower or 'usd' in text_lower or 'dxy' in text_lower or 'fed' in text_lower:
@@ -638,32 +782,12 @@ def format_message(article):
     else:
         emoji = "📰"
 
-    # Split summary into sentences
-    if '.' in full_persian_summary:
-        sentences = [s.strip() for s in full_persian_summary.split('.') if s.strip()]
-        first_sentence = sentences[0] + '.'
-        remaining_sentences = sentences[1:]
-    else:
-        first_sentence = full_persian_summary.strip() + '.'
-        remaining_sentences = []
-
-    # Determine if remaining text contains important financial information
-    important_keywords = [
-        '٪', '%', 'نرخ', 'شاخص', 'میلیارد', 'میلیون', 'هزار', 'دلار', 'یورو',
-        'پوند', 'ین', 'نفت', 'طلا', 'تورم', 'بیکاری', 'فدرال', 'بانک مرکزی',
-        'سود', 'قیمت', 'تولید', 'صادرات', 'واردات', 'سهام', 'بورس', 'بازار',
-        'افزایش', 'کاهش', 'رشد', 'سقوط', 'رکورد', 'بالاترین', 'پایین‌ترین',
-        'پیش‌بینی', 'تحلیل', 'تصمیم', 'سیاست', 'نرخ بهره'
-    ]
-    remaining_text = '. '.join(remaining_sentences)
-    has_important = bool(re.search(r'[۰-۹0-9]', remaining_text)) or any(kw in remaining_text for kw in important_keywords)
-
+    # Build message
     msg = f"{emoji} <b>{persian_title}</b>\n"
-    msg += f"<i>خلاصه:</i> {first_sentence}\n"
-    if remaining_sentences and has_important:
-        # Include up to 2 additional sentences
-        extra = '. '.join(remaining_sentences[:2]) + '.'
-        msg += f"<i>جزئیات بیشتر:</i> {extra}\n"
+    if main_summary:
+        msg += "\n" + main_summary
+    if extra_details:
+        msg += "\n" + extra_details
     msg += "\n" + gold_label
     if oil_label:
         msg += "\n" + oil_label
@@ -988,7 +1112,7 @@ def save_queue(items):
     with open('queue.json', 'w') as f:
         json.dump(items, f)
 
-# ================= COLLECT NEWS (NO POSTING) =================
+# ================= COLLECT NEWS (WITH PRIORITY & FILTER) =================
 def collect_news():
     processed = load_processed()
     queue = load_queue()
@@ -1001,13 +1125,14 @@ def collect_news():
             if resp.status_code == 200:
                 feed = feedparser.parse(resp.content)
                 for entry in feed.entries[:3]:
-                    image_url = extract_image_url(entry)
+                    image_url, video_url = extract_media_urls(entry)
                     all_articles.append({
                         'id': entry.get('link', ''),
                         'title': entry.get('title', ''),
                         'summary': clean_html(entry.get('summary', '')),
                         'link': entry.get('link', ''),
                         'image_url': image_url,
+                        'video_url': video_url,
                     })
             else:
                 print(f"Failed to fetch {url} (status {resp.status_code})")
@@ -1019,10 +1144,18 @@ def collect_news():
         if art['id'] in processed:
             continue
         text = (art['title'] + ' ' + art['summary']).lower()
-        if any(kw in text for kw in KEYWORDS):
-            relevant.append(art)
+        # Filter: keep if contains any KEYWORDS
+        if not any(kw in text for kw in KEYWORDS):
+            continue
+        # Additional filter: prioritize G20 or Iran or critical events
+        # (all articles that pass KEYWORDS but low priority will be lower in sorting)
+        relevant.append(art)
 
-    new_articles = relevant[:MAX_POSTS_PER_RUN]
+    # Sort by priority score descending
+    relevant_sorted = sorted(relevant, key=priority_score, reverse=True)
+
+    # Select top N
+    new_articles = relevant_sorted[:MAX_POSTS_PER_RUN]
 
     for art in new_articles:
         if art not in queue:
@@ -1045,6 +1178,10 @@ def post_one():
     if article.get('image_url'):
         msg = format_message(article)
         send_to_telegram(msg, article['image_url'])
+    elif article.get('video_url'):
+        # For video, send message with link preview
+        msg = format_message(article)
+        send_to_telegram(msg, article['video_url'])
     else:
         msg = format_message(article)
         send_to_telegram(msg)
