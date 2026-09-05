@@ -20,6 +20,7 @@ from matplotlib.patches import FancyBboxPatch
 
 # ================= CONFIGURATION =================
 RSS_FEEDS = [
+    # Core Financial
     "https://www.actionforex.com/feed",
     "https://www.fxstreet.com/rss/news",
     "https://www.kitco.com/news/rss",
@@ -27,11 +28,37 @@ RSS_FEEDS = [
     "https://www.federalreserve.gov/feeds/press_all.xml",
     "https://www.ecb.europa.eu/rss/press.html",
     "https://www.eia.gov/rss/todayinenergy.xml",
+
+    # Global News Agencies
     "https://rss.dw.com/rdf/rss-en-world",
     "https://www.france24.com/en/rss",
     "https://www.aljazeera.com/xml/rss/all.xml",
     "https://www.theguardian.com/world/rss",
     "https://feeds.bbci.co.uk/news/rss.xml",
+
+    # UK Specialized
+    "https://www.telegraph.co.uk/business/rss.xml",
+    "https://www.theguardian.com/uk/business/rss",
+
+    # France Specialized
+    "https://www.france24.com/en/business/rss",
+
+    # Germany Specialized
+    "https://rss.dw.com/rdf/rss-en-ger",
+    "https://rss.dw.com/rdf/rss-en-bus",
+
+    # Russia Specialized
+    "https://tass.com/rss/v2.xml",
+    "https://www.themoscowtimes.com/rss/news",
+
+    # China Specialized
+    "https://scmp.com/rss/4/feed",
+
+    # Asia/Japan
+    "https://rss.dw.com/rdf/rss-en-asia",
+
+    # Middle East / Gulf
+    "https://www.france24.com/en/middle-east/rss",
 ]
 
 POST_INTERVAL = 360          # 6 minutes
@@ -55,6 +82,13 @@ KEYWORDS = [
     'gold', 'xau', 'dollar', 'dxy', 'fed', 'rate', 'inflation',
     'cpi', 'oil', 'crude', 'brent', 'wti', 'opec', 'gdp', 'nfp',
     'treasury', 'yield', 'sanction', 'geopolitical', 'recession'
+]
+
+# Add Russian keywords (common financial terms)
+RUSSIAN_KEYWORDS = [
+    'золото', 'доллар', 'нефть', 'рубль', 'инфляция', 'ставка', 'фрс',
+    'центральный банк', 'санкции', 'ввп', 'безработица', 'доходность',
+    'опек', 'энергетический кризис'
 ]
 
 IMPORTANT_COUNTRIES = [
@@ -515,7 +549,9 @@ def try_translate_with_model(text, model, custom_prompt=None):
     else:
         system_prompt = (
             "You are a professional financial translator. "
-            "Translate the user's financial news text into Persian (Farsi). "
+            "Detect the language of the input (English, Russian, or any other). "
+            "If the input is not English, first rewrite it into simple, complete English sentences. "
+            "Then translate the text into Persian (Farsi). "
             "Use simple, natural Persian sentence structure with the verb at the end. "
             "Convert all Western numerals to Persian digits. "
             "If the text mentions Iranian officials or government, use respectful language (e.g., 'جمهوری اسلامی ایران', 'مقامات ایرانی'). "
@@ -603,11 +639,10 @@ def translate_summary_to_persian(title_en, summary_en):
         return ""
     prompt = (
         "You are a professional financial news writer. "
-        "Write a concise Persian summary (2-3 sentences max) based on the title and summary. "
-        "The summary must explain the main event, involved country/actor, key numbers, and reason. "
+        "Based on the title and the provided summary, write a concise Persian summary (2-3 sentences max) that explains the main event, involved country/actor, key numbers, and reason. "
         "Do NOT repeat the title. Use simple Persian sentences with verbs at the end. "
         "Convert all numbers to Persian digits. Do NOT include any English words or Latin characters. "
-        "If a term is unfamiliar, transliterate it into Persian letters. "
+        "If the summary is in a language other than English, first rewrite it into simple English, then translate to Persian. "
         "Never refuse, never apologize, just output the final Persian summary."
     )
     user_content = f"Title: {title_en}\nSummary: {summary_en}"
@@ -1157,9 +1192,13 @@ def collect_news():
         if art['id'] in processed:
             continue
         text = (art['title'] + ' ' + art['summary']).lower()
-        if not any(kw in text for kw in KEYWORDS):
+        # Check English keywords
+        if any(kw in text for kw in KEYWORDS):
+            relevant.append(art)
             continue
-        relevant.append(art)
+        # Check Russian keywords (if any Russian text present)
+        if any(kw in text for kw in RUSSIAN_KEYWORDS):
+            relevant.append(art)
 
     relevant_sorted = sorted(relevant, key=priority_score, reverse=True)
     new_articles = relevant_sorted[:MAX_POSTS_PER_RUN]
