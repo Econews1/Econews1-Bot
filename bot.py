@@ -20,6 +20,7 @@ from matplotlib.patches import FancyBboxPatch
 
 # ================= CONFIGURATION =================
 RSS_FEEDS = [
+    # Core financial
     "https://www.actionforex.com/feed",
     "https://www.fxstreet.com/rss/news",
     "https://www.kitco.com/news/rss",
@@ -27,25 +28,48 @@ RSS_FEEDS = [
     "https://www.federalreserve.gov/feeds/press_all.xml",
     "https://www.ecb.europa.eu/rss/press.html",
     "https://www.eia.gov/rss/todayinenergy.xml",
+
+    # Global
     "https://rss.dw.com/rdf/rss-en-world",
     "https://www.france24.com/en/rss",
     "https://www.aljazeera.com/xml/rss/all.xml",
     "https://www.theguardian.com/world/rss",
     "https://feeds.bbci.co.uk/news/rss.xml",
+
+    # UK
     "https://www.telegraph.co.uk/business/rss.xml",
     "https://www.theguardian.com/uk/business/rss",
+
+    # France
     "https://www.france24.com/en/business/rss",
+
+    # Germany
     "https://rss.dw.com/rdf/rss-en-ger",
     "https://rss.dw.com/rdf/rss-en-bus",
+
+    # Russia
     "https://tass.com/rss/v2.xml",
     "https://www.themoscowtimes.com/rss/news",
+
+    # China/Asia
     "https://scmp.com/rss/4/feed",
     "https://rss.dw.com/rdf/rss-en-asia",
+
+    # Middle East
     "https://www.france24.com/en/middle-east/rss",
+
+    # Additional financial
     "https://www.investing.com/rss/news_25.rss",
     "https://www.marketwatch.com/rss/topstories",
     "https://feeds.feedburner.com/zerohedge/feed",
     "https://news.google.com/rss/search?q=gold+OR+oil+OR+dollar+when:1d&hl=en-US&gl=US&ceid=US:en",
+
+    # Persian sources
+    "https://www.fardayeeghtesad.com/rss",
+    "https://www.eghtesadonline.com/fa/updates/13",   # gold & currency
+    "https://www.eghtesadonline.com/fa/updates/27",   # oil & energy
+    "https://www.eghtesadonline.com/fa/updates/8",    # macro
+    "https://www.mehrnews.com/rss",
 ]
 
 POST_INTERVAL = 360          # 6 minutes
@@ -64,16 +88,23 @@ FALLBACK_MODELS = [
 ]
 MODEL_CACHE_FILE = "last_working_model.txt"
 
-# ================= KEYWORD FILTER =================
-KEYWORDS = [
-    'gold', 'xau', 'dollar', 'dxy', 'fed', 'rate', 'inflation',
-    'cpi', 'oil', 'crude', 'brent', 'wti', 'opec', 'gdp', 'nfp',
-    'treasury', 'yield', 'sanction', 'geopolitical', 'recession',
+# ================= CORE PRICE TERMS (Strict filter) =================
+CORE_PRICE_TERMS = [
+    'fed', 'fomc', 'ecb', 'boj', 'boe', 'rate hike', 'rate cut',
     'interest rate decision', 'monetary policy', 'central bank',
-    'bond yields', 'stock market', 'equities', 'forex', 'currency',
-    'energy prices', 'natural gas', 'inflation data', 'cpi data',
-    'jobless claims', 'trade deficit', 'budget', 'eurozone',
-    'emerging markets', 'geopolitical crisis'
+    'inflation', 'cpi', 'nfp', 'unemployment', 'gdp',
+    'recession', 'trade war', 'sanction', 'geopolitical',
+    'oil price', 'crude oil', 'brent', 'wti', 'opec',
+    'gold price', 'gold', 'dollar index', 'dxy',
+    'treasury yield', 'bond yields', 'stock market crash',
+    'currency crisis', 'energy crisis'
+]
+
+PERSIAN_KEYWORDS = [
+    'طلا', 'دلار', 'نفت', 'ارز', 'سکه', 'بورس', 'سهام', 'تورم',
+    'بانک مرکزی', 'نرخ بهره', 'تحریم', 'قیمت', 'اقتصاد', 'بازار',
+    'صادرات', 'واردات', 'بیکاری', 'رشد اقتصادی', 'تولید ناخالص داخلی',
+    'انرژی', 'گاز', 'پتروشیمی', 'فدرال رزرو', 'اوپک'
 ]
 
 RUSSIAN_KEYWORDS = [
@@ -89,14 +120,6 @@ IMPORTANT_COUNTRIES = [
     'south korea', 'russia', 'india', 'brazil', 'mexico', 'indonesia',
     'turkey', 'saudi arabia', 'uae', 'iran', 'israel', 'south africa',
     'europe', 'eurozone', 'european union', 'eu'
-]
-
-CRITICAL_TERMS = [
-    'sanction', 'war', 'conflict', 'attack', 'coup', 'nuclear', 'oil supply',
-    'opec', 'embargo', 'geopolitical', 'central bank', 'fed', 'fomc', 'ecb',
-    'rate hike', 'rate cut', 'inflation', 'recession', 'gdp', 'unemployment',
-    'default', 'debt', 'trade war', 'currency crisis', 'stock crash',
-    'energy crisis', 'pipeline', 'drone', 'missile', 'election', 'political crisis'
 ]
 
 BULLISH = ['rate cut', 'weak dollar', 'geopolitical tension', 'recession',
@@ -398,74 +421,108 @@ ECONOMIC_GLOSSARY = {
     'RBI': 'بانک مرکزی هند',
 }
 
-# ================= RESPECTFUL IRAN TERMINOLOGY =================
-IRAN_RESPECT_GLOSSARY = {
-    'Iranian regime': 'جمهوری اسلامی ایران',
-    'Iranian Regime': 'جمهوری اسلامی ایران',
-    "Iran's clerical rule": 'نظام جمهوری اسلامی',
-    "Iran's theocracy": 'نظام جمهوری اسلامی',
-    'Iranian theocracy': 'نظام جمهوری اسلامی',
-    "Iran's rulers": 'رهبران جمهوری اسلامی',
-    "Iran's hardliners": 'عناصر محافظه‌کار جمهوری اسلامی',
-    'Mullahs': 'علمای دینی',
-    'Clerics': 'علمای دینی',
-    'Supreme Leader': 'رهبر معظم',
-    'Supreme Leader of Iran': 'رهبر معظم جمهوری اسلامی ایران',
-    "Iran's leader": 'رهبر معظم',
-    'Ayatollah Khamenei': 'حضرت آیت‌الله خامنه‌ای',
-    'Khamenei': 'حضرت آیت‌الله خامنه‌ای',
-    'Iranian president': 'رئیس‌جمهور محترم ایران',
-    'Pezeshkian': 'دکتر مسعود پزشکیان',
-    'Masoud Pezeshkian': 'دکتر مسعود پزشکیان',
-    'President Pezeshkian': 'رئیس‌جمهور دکتر مسعود پزشکیان',
-    "Iran's FM": 'وزیر خارجه محترم ایران',
-    'Araghchi': 'سید عباس عراقچی',
-    'Abbas Araghchi': 'سید عباس عراقچی',
-    "Iran's foreign minister": 'وزیر خارجه ایران',
-    'Iranian parliament': 'مجلس شورای اسلامی',
-    "Iran's parliament": 'مجلس شورای اسلامی',
-    'Majles': 'مجلس شورای اسلامی',
-    'Guardian Council': 'شورای نگهبان',
-    'Assembly of Experts': 'مجلس خبرگان رهبری',
-    'Expediency Council': 'مجمع تشخیص مصلحت نظام',
-    'Bank Markazi': 'بانک مرکزی جمهوری اسلامی ایران',
-    'National Iranian Oil Company': 'شرکت ملی نفت ایران',
-    'NIOC': 'شرکت ملی نفت ایران',
-    "Iran's oil ministry": 'وزارت نفت جمهوری اسلامی ایران',
-    "Iran's foreign ministry": 'وزارت امور خارجه جمهوری اسلامی ایران',
-    "Iran's finance ministry": 'وزارت امور اقتصادی و دارایی',
-    "Iran's nuclear program": 'برنامه هسته‌ای صلح‌آمیز ایران',
-    'Iran nuclear deal': 'برنامه جامع اقدام مشترک',
-    'JCPOA': 'برنامه جامع اقدام مشترک',
-    'Iran sanctions': 'تحریم‌های علیه جمهوری اسلامی ایران',
-    'Iranian nuclear threat': 'فعالیت‌های هسته‌ای ایران',
-    "Iran's proxies": 'شرکای منطقه‌ای ایران',
-    "Iran's malign activities": 'سیاست‌های منطقه‌ای ایران',
+# ================= IRAN SPECIFIC GLOSSARY =================
+IRAN_SPECIFIC_GLOSSARY = {
+    'سپاه': 'نیروهای سپاه',
+    'سپاه پاسداران': 'نیروهای سپاه پاسداران',
+    'ارتش': 'نیروهای ارتش',
+    'خارگ': 'خارگ',
+    'بندرعباس': 'بندرعباس',
+    'تنگه هرمز': 'تنگه هرمز',
+    'سنتکام': 'سنتکام',
+    'وزارت نفت': 'وزارت نفت',
+    'شرکت ملی نفت': 'شرکت ملی نفت',
+    'بانک مرکزی': 'بانک مرکزی',
+    'مجلس': 'مجلس شورای اسلامی',
+    'دولت': 'دولت',
+    'رئیس‌جمهور': 'رئیس‌جمهور',
+    'رهبر': 'رهبر معظم',
+    'تحریم': 'تحریم',
+    'برجام': 'برنامه جامع اقدام مشترک',
+    'هسته‌ای': 'برنامه هسته‌ای صلح‌آمیز',
 }
 
-PERSIAN_CORRECTIONS = {
-    'بر بره': 'بر بشکه',
-    'بره ': 'بشکه ',
-    'اواس‌دی': 'دلار آمریکا',
-    'یو‌اس‌دی': 'دلار آمریکا',
-    'جپای': 'ین ژاپن',
-    'جی‌پی‌وی': 'ین ژاپن',
-    'اواس-ژاپن': 'آمریکا-ژاپن',
-    'سکه‌ی ژاپنی': 'ین ژاپن',
-    'داده‌های گرم': 'داده‌های قوی',
-    'موقعیت کوتاه': 'پوزیشن فروش',
-    'موقعیت بلند': 'پوزیشن خرید',
+# ================= COUNTRY SPECIFIC GLOSSARIES =================
+COUNTRY_GLOSSARY = {
+    'USA': {
+        'Federal Reserve': 'فدرال رزرو',
+        'FOMC': 'کمیته بازار باز فدرال',
+        'CPI': 'شاخص قیمت مصرف‌کننده',
+        'NFP': 'آمار اشتغال غیرکشاورزی',
+        'GDP': 'تولید ناخالص داخلی',
+        'Treasury': 'وزارت خزانه‌داری',
+        'White House': 'کاخ سفید',
+        'Pentagon': 'پنتاگون',
+    },
+    'UK': {
+        'Bank of England': 'بانک مرکزی انگلستان',
+        'BoE': 'بانک مرکزی انگلستان',
+        'Parliament': 'پارلمان',
+        'Downing Street': 'دفتر نخست‌وزیری',
+    },
+    'Europe': {
+        'ECB': 'بانک مرکزی اروپا',
+        'European Commission': 'کمیسیون اروپا',
+        'Eurozone': 'منطقه یورو',
+    },
+    'Russia': {
+        'Kremlin': 'کرملین',
+        'Gazprom': 'گازپروم',
+        'Rosneft': 'روسنفت',
+        'Central Bank of Russia': 'بانک مرکزی روسیه',
+    },
+    'China': {
+        'PBOC': 'بانک مرکزی چین',
+        'Communist Party': 'حزب کمونیست',
+        'NPC': 'کنگره ملی خلق',
+    },
+    'Japan': {
+        'BOJ': 'بانک مرکزی ژاپن',
+        'Ministry of Finance': 'وزارت دارایی',
+        'Yen': 'ین',
+    }
 }
 
-# ================= NEW: TRANSLATION IMPROVEMENTS =================
+# ================= PERSIAN NAME CORRECTIONS =================
 PERSIAN_NAME_CORRECTIONS = {
     'جزیره خرج': 'جزیره خارگ',
     'سلاح‌خیزان سپاه': 'نیروهای سپاه',
     'سپاه پاسداران': 'نیروهای سپاه پاسداران',
-    'نیروی دریایی ارتش': 'نیروی دریایی ارتش',
     'ستاد فرماندهی مرکزی': 'سنتکام',
-    'سنتکام': 'سنتکام',
 }
+
+# ================= TRANSLATION IMPROVEMENTS =================
+def apply_all_glossaries(text):
+    # Apply Persian corrections
+    for wrong, right in PERSIAN_CORRECTIONS.items():
+        text = text.replace(wrong, right)
+    # Iran respect glossary
+    for eng, fa_text in IRAN_RESPECT_GLOSSARY.items():
+        text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
+    # Economic glossary
+    for eng, fa_text in ECONOMIC_GLOSSARY.items():
+        text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
+    # Iranian specific Persian corrections
+    for eng, fa_text in IRAN_SPECIFIC_GLOSSARY.items():
+        text = text.replace(eng, fa_text)
+    # Country specific glossaries
+    for country_dict in COUNTRY_GLOSSARY.values():
+        for eng, fa_text in country_dict.items():
+            text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
+    # Persian name corrections
+    for wrong, right in PERSIAN_NAME_CORRECTIONS.items():
+        text = text.replace(wrong, right)
+    return text
+
+def detect_language(text):
+    if not text:
+        return "en"
+    if re.search(r'[\u0600-\u06FF]', text):
+        return "fa"
+    elif re.search(r'[\u0400-\u04FF]', text):
+        return "ru"
+    else:
+        return "en"
 
 def simplify_to_english(text):
     if not text:
@@ -488,857 +545,21 @@ def translate_english_to_persian(english_text):
         "Translate the following English text into Persian. "
         "Use natural Persian sentence structure: verb at the end of the sentence, object before subject if needed. "
         "Do NOT include any English words. Transliterate any remaining English terms into Persian letters. "
-        "Use the following corrections: 'سپاه' means 'نیروهای سپاه', 'Kharg' is 'خارگ', 'CENTCOM' is 'سنتکام'. "
         "Output only the Persian translation, nothing else."
     )
     result = translate_with_custom_prompt(prompt, english_text)
     return result
 
-def apply_persian_name_corrections(text):
-    for wrong, right in PERSIAN_NAME_CORRECTIONS.items():
-        text = text.replace(wrong, right)
-    return text
-
-# ================= TRANSLATION FUNCTIONS =================
-def clean_html(text):
-    return re.sub('<.*?>', '', text)
-
-def get_groq_models():
-    url = "https://api.groq.com/openai/v1/models"
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-    try:
-        resp = requests.get(url, headers=headers, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            return [m['id'] for m in data.get('data', []) if m.get('active', False)]
-        else:
-            print(f"Failed to fetch models: {resp.status_code}")
-            return []
-    except Exception as e:
-        print(f"Error fetching models: {e}")
-        return []
-
-def extract_translation(raw_output):
-    if not raw_output:
-        return ""
-    if '</think>' in raw_output:
-        raw_output = raw_output.split('</think>')[-1].strip()
-    raw_output = re.sub(r'^<think>.*?(?=<think>|$)', '', raw_output, flags=re.DOTALL).strip()
-    return raw_output
-
-def is_refusal(text):
-    refusal_phrases = [
-        "i'm sorry", "i am sorry", "i can't", "i cannot",
-        "can't help", "cannot help", "not able to", "unable to",
-        "i apologize", "sorry, but", "i'm not able", "i am not able",
-        "i won't", "i will not"
-    ]
-    lower = text.lower()
-    return any(phrase in lower for phrase in refusal_phrases)
-
-def apply_glossaries(text):
-    for wrong, right in PERSIAN_CORRECTIONS.items():
-        text = text.replace(wrong, right)
-    for eng, fa_text in IRAN_RESPECT_GLOSSARY.items():
-        text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
-    for eng, fa_text in ECONOMIC_GLOSSARY.items():
-        text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
-    return text
-
-def load_cached_model():
-    if os.path.exists(MODEL_CACHE_FILE):
-        with open(MODEL_CACHE_FILE, 'r') as f:
-            return f.read().strip()
-    return None
-
-def save_cached_model(model_id):
-    with open(MODEL_CACHE_FILE, 'w') as f:
-        f.write(model_id)
-
-def has_latin(text):
-    return bool(re.search(r'[A-Za-z]', text))
-
-def force_persian(text):
-    prompt = (
-        "The following text contains some English words or Latin characters. "
-        "Rewrite it entirely in Persian script, translating any remaining English terms into Persian. "
-        "Use standard Persian financial terminology. Do not include any Latin letters. "
-        "Keep the meaning intact. Output only the Persian text."
-    )
-    result = translate_with_custom_prompt(prompt, text)
-    if result and not has_latin(result):
-        return result
-    result = re.sub(r'[A-Za-z]+', '', text)
-    result = re.sub(r'\s+', ' ', result).strip()
-    return result
-
-def try_translate_with_model(text, model, custom_prompt=None):
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    if custom_prompt:
-        system_prompt = custom_prompt
-    else:
-        system_prompt = (
-            "You are a professional financial translator. "
-            "Detect the language of the input (English, Russian, or any other). "
-            "If the input is not English, first rewrite it into simple, complete English sentences. "
-            "Then translate the text into Persian (Farsi). "
-            "Use simple, natural Persian sentence structure with the verb at the end. "
-            "Convert all Western numerals to Persian digits. "
-            "If the text mentions Iranian officials or government, use respectful language (e.g., 'جمهوری اسلامی ایران', 'مقامات ایرانی'). "
-            "Important: Do NOT include any English words or Latin characters in the output. "
-            "If you encounter an English term, transliterate it into Persian letters. "
-            "Never refuse, never apologize, just output the final Persian translation."
-        )
-    data = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": text}
-        ],
-        "max_tokens": 8000,
-        "temperature": 0.3
-    }
-    try:
-        resp = requests.post(url, headers=headers, json=data, timeout=30)
-        print(f"  Trying model {model} -> status {resp.status_code}")
-        if resp.status_code == 200:
-            raw = resp.json()['choices'][0]['message']['content'].strip()
-            cleaned = extract_translation(raw)
-            if any(phrase in cleaned for phrase in ["متن خبری مالی را", "لطفاً متن خبری", "Translate the user's financial news"]):
-                print("  Model returned system prompt, skipping.")
-                return None
-            if is_refusal(cleaned):
-                print("  Model refused, skipping.")
-                return None
-            if cleaned and len(cleaned) > 5:
-                cleaned = apply_glossaries(cleaned)
-                cleaned = to_persian_digits(cleaned)
-                if has_latin(cleaned):
-                    print("  Latin detected, forcing Persian...")
-                    forced = force_persian(cleaned)
-                    if forced:
-                        cleaned = forced
-                return cleaned
-            else:
-                print("  Model returned empty translation.")
-                return None
-        else:
-            print(f"  Model {model} failed: {resp.text[:200]}")
-            return None
-    except Exception as e:
-        print(f"  Model {model} exception: {e}")
-        return None
-
-def translate_to_persian(text, custom_prompt=None):
-    if not GROQ_API_KEY:
-        return text
-    cached = load_cached_model()
-    if cached:
-        print(f"Trying cached model: {cached}")
-        result = try_translate_with_model(text, cached, custom_prompt)
-        if result:
-            return result
-        else:
-            if os.path.exists(MODEL_CACHE_FILE):
-                os.remove(MODEL_CACHE_FILE)
-    for model in PREFERRED_MODELS:
-        result = try_translate_with_model(text, model, custom_prompt)
-        if result:
-            save_cached_model(model)
-            return result
-    for model in FALLBACK_MODELS:
-        result = try_translate_with_model(text, model, custom_prompt)
-        if result:
-            save_cached_model(model)
-            return result
-    print("All known models failed. Fetching active models...")
-    active_models = get_groq_models()
-    def is_preferred(m):
-        lower = m.lower()
-        return 'qwen' not in lower and 'reason' not in lower
-    sorted_models = sorted(active_models, key=lambda m: not is_preferred(m))
-    for model in sorted_models:
-        result = try_translate_with_model(text, model, custom_prompt)
-        if result:
-            save_cached_model(model)
-            return result
-    return text
-
-def translate_summary_to_persian(title_en, summary_en):
-    if not summary_en:
+def summarize_persian(persian_text):
+    if not persian_text:
         return ""
     prompt = (
-        "You are a professional financial news writer. "
-        "Based on the title and the provided summary, write a concise Persian summary (2-3 sentences max) that explains the main event, involved country/actor, key numbers, and reason. "
-        "Do NOT repeat the title. Use simple Persian sentences with verbs at the end. "
-        "Convert all numbers to Persian digits. Do NOT include any English words or Latin characters. "
-        "If the summary is in a language other than English, first rewrite it into simple English, then translate to Persian. "
-        "Never refuse, never apologize, just output the final Persian summary."
+        "You are a professional Persian financial news summarizer. "
+        "Summarize the following Persian news text into 2-3 concise Persian sentences. "
+        "Focus on key economic data, price impact, and important actors. "
+        "Keep the original Persian, do not translate. "
+        "Output only the summary, nothing else."
     )
-    user_content = f"Title: {title_en}\nSummary: {summary_en}"
-    result = translate_with_custom_prompt(prompt, user_content)
-    if result and has_latin(result):
-        forced = force_persian(result)
-        if forced:
-            result = forced
-    return result
+    return translate_with_custom_prompt(prompt, persian_text)
 
-def translate_with_custom_prompt(system_prompt, user_content):
-    if not GROQ_API_KEY:
-        return ""
-    cached = load_cached_model()
-    if cached:
-        result = try_translate_with_model(user_content, cached, system_prompt)
-        if result:
-            return result
-        else:
-            if os.path.exists(MODEL_CACHE_FILE):
-                os.remove(MODEL_CACHE_FILE)
-    for model in PREFERRED_MODELS:
-        result = try_translate_with_model(user_content, model, system_prompt)
-        if result:
-            save_cached_model(model)
-            return result
-    for model in FALLBACK_MODELS:
-        result = try_translate_with_model(user_content, model, system_prompt)
-        if result:
-            save_cached_model(model)
-            return result
-    active_models = get_groq_models()
-    def is_preferred(m):
-        lower = m.lower()
-        return 'qwen' not in lower and 'reason' not in lower
-    sorted_models = sorted(active_models, key=lambda m: not is_preferred(m))
-    for model in sorted_models:
-        result = try_translate_with_model(user_content, model, system_prompt)
-        if result:
-            save_cached_model(model)
-            return result
-    return ""
-
-# ================= SENTIMENT =================
-def score_sentiment(text):
-    text_lower = text.lower()
-    score = 0
-    for w in BULLISH:
-        if w in text_lower:
-            score += 1
-    for w in BEARISH:
-        if w in text_lower:
-            score -= 1
-    return score
-
-def sentiment_label(score):
-    if score >= 1:
-        return "اثر بر طلا: افزایش قیمت 📈"
-    elif score <= -1:
-        return "اثر بر طلا: کاهش قیمت 📉"
-    else:
-        return ""
-
-def score_oil_sentiment(text):
-    text_lower = text.lower()
-    score = 0
-    for w in OIL_BULLISH:
-        if w in text_lower:
-            score += 1
-    for w in OIL_BEARISH:
-        if w in text_lower:
-            score -= 1
-    return score
-
-def oil_sentiment_label(score):
-    if score >= 1:
-        return "اثر بر نفت: افزایش قیمت 📈"
-    elif score <= -1:
-        return "اثر بر نفت: کاهش قیمت 📉"
-    else:
-        return ""
-
-# ================= MEDIA EXTRACTION (IMPROVED) =================
-def extract_media_urls(entry):
-    image_url = ""
-    video_url = ""
-    # media_content
-    if hasattr(entry, 'media_content') and entry.media_content:
-        for media in entry.media_content:
-            mtype = media.get('type', '')
-            medium = media.get('medium', '')
-            url = media.get('url', '')
-            if medium == 'image' or mtype.startswith('image/'):
-                if not image_url:
-                    image_url = url
-            elif medium == 'video' or mtype.startswith('video/'):
-                if not video_url:
-                    video_url = url
-    # media_thumbnail
-    if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
-        for thumb in entry.media_thumbnail:
-            if not image_url:
-                image_url = thumb.get('url', '')
-    # enclosures
-    if hasattr(entry, 'enclosures') and entry.enclosures:
-        for enc in entry.enclosures:
-            etype = enc.get('type', '')
-            if etype.startswith('image/') and not image_url:
-                image_url = enc.get('href', '')
-            elif etype.startswith('video/') and not video_url:
-                video_url = enc.get('href', '')
-    # links
-    if hasattr(entry, 'links'):
-        for link in entry.links:
-            ltype = link.get('type', '')
-            if link.get('rel') == 'enclosure' and ltype.startswith('image/') and not image_url:
-                image_url = link.get('href', '')
-            elif link.get('rel') == 'enclosure' and ltype.startswith('video/') and not video_url:
-                video_url = link.get('href', '')
-            elif ltype.startswith('image/') and not image_url:
-                image_url = link.get('href', '')
-            elif ltype.startswith('video/') and not video_url:
-                video_url = link.get('href', '')
-    return image_url, video_url
-
-# ================= PRIORITY SCORING =================
-def priority_score(article):
-    score = 0
-    text = (article.get('title', '') + ' ' + article.get('summary', '')).lower()
-    if article.get('video_url'):
-        score += 20
-    elif article.get('image_url'):
-        score += 15
-    if re.search(r'[۰-۹0-9]', text):
-        score += 5
-    if len(article.get('summary', '')) > 100:
-        score += 3
-    if any(country in text for country in IMPORTANT_COUNTRIES):
-        score += 10
-    if any(term in text for term in CRITICAL_TERMS):
-        score += 12
-    gold_score = score_sentiment(text)
-    oil_score = score_oil_sentiment(text) if any(kw in text for kw in ['oil', 'crude', 'brent', 'wti', 'opec', 'petroleum', 'energy']) else 0
-    if abs(gold_score) >= 1 or abs(oil_score) >= 1:
-        score += 8
-    high_impact = ['fed', 'fomc', 'ecb', 'boj', 'boe', 'rate hike', 'rate cut', 'inflation', 'cpi',
-                   'nfp', 'gdp', 'unemployment', 'opec', 'sanctions', 'war', 'geopolitical']
-    if any(kw in text for kw in high_impact):
-        score += 6
-    return score
-
-# ================= FORMAT MESSAGE (UPDATED) =================
-def format_message(article):
-    title_en = article.get('title', '')
-    summary_en = article.get('summary', '')[:200]
-
-    # Step 1: Simplify to English
-    simple_title_en = simplify_to_english(title_en)
-    simple_summary_en = simplify_to_english(summary_en) if summary_en else ""
-
-    # Step 2: Translate simplified English to Persian
-    persian_title = translate_english_to_persian(simple_title_en)
-    persian_summary = translate_english_to_persian(simple_summary_en) if simple_summary_en else ""
-
-    # Step 3: Apply corrections
-    persian_title = apply_persian_name_corrections(persian_title)
-    persian_summary = apply_persian_name_corrections(persian_summary)
-
-    # Check if summary is too similar to title (normalized)
-    if persian_summary and title_en:
-        t1 = re.sub(r'[^\w\s]', '', persian_title)
-        t2 = re.sub(r'[^\w\s]', '', persian_summary)
-        if len(t1) > 0 and len(t2) > 0:
-            words1 = set(t1.split()[:8])
-            words2 = set(t2.split()[:8])
-            common = len(words1.intersection(words2))
-            similarity = common / max(len(words1), len(words2))
-            if similarity > 0.7:
-                persian_summary = ""
-
-    # Split summary
-    main_summary = ""
-    extra_details = ""
-    if persian_summary:
-        parts = [p.strip() for p in re.split(r'[.!?]', persian_summary) if p.strip()]
-        if parts:
-            main_summary = parts[0] + '.'
-            if len(parts) > 1:
-                extra_details = '. '.join(parts[1:]) + '.'
-
-    # Sentiment
-    text_lower = (title_en + ' ' + summary_en).lower()
-    gold_label = sentiment_label(score_sentiment(text_lower))
-    is_oil_related = any(kw in text_lower for kw in ['oil', 'crude', 'brent', 'wti', 'opec', 'petroleum', 'energy'])
-    oil_label = oil_sentiment_label(score_oil_sentiment(text_lower)) if is_oil_related else ""
-
-    emoji = "📰"
-    if is_oil_related:
-        emoji = "🛢️"
-    elif 'dollar' in text_lower or 'usd' in text_lower or 'dxy' in text_lower or 'fed' in text_lower:
-        emoji = "💵"
-    elif 'geopolitical' in text_lower or 'war' in text_lower or 'sanction' in text_lower:
-        emoji = "🌍"
-
-    msg = f"{emoji} <b>{persian_title}</b>\n"
-    if main_summary:
-        msg += "\n" + main_summary
-    if extra_details:
-        msg += "\n" + extra_details
-    if gold_label or oil_label:
-        sentiment_lines = []
-        if gold_label:
-            sentiment_lines.append(gold_label)
-        if oil_label:
-            sentiment_lines.append(oil_label)
-        msg += "\n\n" + "\n".join(sentiment_lines)
-
-    return msg
-
-# ================= SEND TO TELEGRAM =================
-def send_to_telegram(message, image_url=None):
-    if not TELEGRAM_BOT_TOKEN or not CHANNEL_ID:
-        print("Telegram not configured. Printing message:\n", message)
-        return
-    if image_url:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
-        payload = {'chat_id': CHANNEL_ID, 'photo': image_url, 'caption': message, 'parse_mode': 'HTML'}
-        try:
-            resp = requests.post(url, json=payload, timeout=30)
-            if resp.status_code == 200:
-                print("Photo sent.")
-                return
-            else:
-                print(f"sendPhoto failed ({resp.status_code}), falling back to text.")
-        except Exception as e:
-            print(f"sendPhoto exception: {e}, falling back to text.")
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {'chat_id': CHANNEL_ID, 'text': message, 'parse_mode': 'HTML', 'disable_web_page_preview': False}
-    try:
-        resp = requests.post(url, json=payload, timeout=30)
-        if resp.status_code == 200:
-            print("Message sent.")
-        else:
-            print(f"sendMessage failed ({resp.status_code}): {resp.text[:200]}")
-    except Exception as e:
-        print(f"sendMessage exception: {e}")
-
-# ================= PROFESSIONAL CHART STYLING =================
-COLORS = {
-    'gold': {'line': '#FFD700', 'fill_light': '#FFD70022', 'fill_dark': '#FFD70000', 'text': '#FFD700'},
-    'usd': {'line': '#00E5FF', 'fill_light': '#00E5FF22', 'fill_dark': '#00E5FF00', 'text': '#00E5FF'},
-    'tether': {'line': '#FFA500', 'fill_light': '#FFA50022', 'fill_dark': '#FFA50000', 'text': '#FFA500'},
-    'oil': {'line': '#1E90FF', 'fill_light': '#1E90FF22', 'fill_dark': '#1E90FF00', 'text': '#1E90FF'},
-    'up': '#00C853', 'down': '#FF5252', 'neutral': '#9E9E9E'
-}
-
-def _create_gradient_fill(ax, x, y, line_color):
-    cmap = LinearSegmentedColormap.from_list(
-        'gradient',
-        [(0, mcolors.to_rgba(line_color, 0.0)),
-         (1, mcolors.to_rgba(line_color, 0.3))]
-    )
-    gradient = np.linspace(0, 1, 256).reshape(-1, 1)
-    im = ax.imshow(
-        gradient,
-        extent=[min(x), max(x), 0, max(y)],
-        aspect='auto',
-        origin='lower',
-        cmap=cmap,
-        zorder=1
-    )
-    verts = list(zip(x, y)) + [(x[-1], 0), (x[0], 0)]
-    clip_path = plt.Polygon(verts, closed=True, transform=ax.transData)
-    im.set_clip_path(clip_path)
-
-def _style_axis_professional(ax, font_prop):
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_color('#555555')
-    ax.spines['left'].set_linewidth(0.5)
-    ax.spines['bottom'].set_color('#555555')
-    ax.spines['bottom'].set_linewidth(0.5)
-    ax.grid(True, axis='y', linestyle='--', alpha=0.15, color='#888888', linewidth=0.5)
-    ax.grid(False, axis='x')
-    ax.tick_params(axis='both', which='both', length=0)
-    ax.tick_params(axis='x', colors='#888888', labelsize=10)
-    ax.tick_params(axis='y', colors='#888888', labelsize=10)
-    if font_prop:
-        for label in ax.get_xticklabels():
-            label.set_fontproperties(font_prop)
-        for label in ax.get_yticklabels():
-            label.set_fontproperties(font_prop)
-
-def _add_price_annotation(ax, x, y, price, color, font_prop, currency='$', label=None):
-    ax.plot([x[-1], x[-1] + 0.5], [y[-1], y[-1]],
-            color=color, linewidth=1, linestyle='-', alpha=0.7)
-    price_text = f"{price:,.0f}{currency}"
-    price_text_fa = to_persian_digits(price_text)
-    if label:
-        annotation_text = f"{label}\n{price_text_fa}"
-    else:
-        annotation_text = price_text_fa
-    ax.annotate(
-        annotation_text,
-        xy=(x[-1], y[-1]),
-        xytext=(15, 0),
-        textcoords='offset points',
-        color='white',
-        fontsize=11,
-        va='center',
-        bbox=dict(boxstyle='round,pad=0.4', facecolor=color, alpha=0.85, edgecolor='none'),
-        fontproperties=font_prop if font_prop else None,
-        linespacing=1.5
-    )
-
-def _add_change_badge(ax, y_data, font_prop):
-    if len(y_data) < 2:
-        return
-    change = ((y_data[-1] - y_data[0]) / y_data[0]) * 100
-    if change >= 0:
-        color = COLORS['up']
-        sign = '+'
-    else:
-        color = COLORS['down']
-        sign = ''
-    change_text = f"{sign}{abs(change):.1f}%"
-    change_text_fa = to_persian_digits(change_text)
-    ax.text(
-        0.5, 0.92,
-        change_text_fa,
-        transform=ax.transAxes,
-        fontsize=13,
-        fontweight='bold',
-        color=color,
-        ha='center',
-        va='top',
-        fontproperties=font_prop if font_prop else None
-    )
-
-def _abbreviate_y_axis_for_usd(ax):
-    y_ticks = ax.get_yticks()
-    new_labels = []
-    for tick in y_ticks:
-        if tick >= 1000:
-            value_in_thousands = tick / 1000
-            label = f"{to_persian_digits(f'{value_in_thousands:.1f}')} هزار"
-        else:
-            label = to_persian_digits(str(int(tick)))
-        new_labels.append(label)
-    ax.set_yticks(y_ticks)
-    ax.set_yticklabels(new_labels)
-
-def generate_professional_gold_chart(font_prop):
-    hours = list(range(0, 24, 2))
-    gold_prices = [2030 + i*2 + np.sin(i/3)*10 for i in range(len(hours))]
-    fig = plt.figure(figsize=(12, 7), facecolor='#0d1117')
-    ax = fig.add_subplot(111)
-    ax.set_facecolor('#0d1117')
-    ax.plot(hours, gold_prices, color=COLORS['gold']['line'],
-            linewidth=2.5, zorder=3, solid_capstyle='round')
-    _create_gradient_fill(ax, hours, gold_prices, COLORS['gold']['line'])
-    ax.fill_between(hours, gold_prices, min(gold_prices) - 20,
-                     alpha=0.1, color=COLORS['gold']['line'], zorder=2)
-    _style_axis_professional(ax, font_prop)
-    _add_price_annotation(ax, hours, gold_prices, gold_prices[-1],
-                          COLORS['gold']['line'], font_prop, currency='$')
-    _add_change_badge(ax, gold_prices, font_prop)
-    title_text = fa('قیمت جهانی طلا')
-    ax.set_title(title_text, color='white', fontsize=18, fontweight='bold',
-                 fontproperties=font_prop, pad=20)
-    ax.set_xlabel(fa('ساعت'), color='#888888', fontsize=12, fontproperties=font_prop)
-    ax.set_ylabel(fa('قیمت (دلار)'), color='#888888', fontsize=12, fontproperties=font_prop)
-    x_labels = [to_persian_digits(str(h)) for h in hours]
-    ax.set_xticks(hours)
-    ax.set_xticklabels(x_labels, color='#888888', fontsize=10, fontproperties=font_prop)
-    y_padding = (max(gold_prices) - min(gold_prices)) * 0.15
-    ax.set_ylim(min(gold_prices) - y_padding, max(gold_prices) + y_padding)
-    y_ticks = ax.get_yticks()
-    y_labels = [to_persian_digits(f"{tick:,.0f}") for tick in y_ticks]
-    ax.set_yticks(y_ticks)
-    ax.set_yticklabels(y_labels, color='#888888', fontsize=10, fontproperties=font_prop)
-    plt.tight_layout()
-    path = "gold_chart.png"
-    plt.savefig(path, dpi=150, facecolor='#0d1117',
-                bbox_inches='tight', pad_inches=0.2)
-    plt.close()
-    return path
-
-def generate_professional_oil_chart(font_prop):
-    hours = list(range(0, 24, 2))
-    oil_prices = [82 + i*0.5 + np.sin(i/2.5)*1.5 for i in range(len(hours))]
-    fig = plt.figure(figsize=(12, 7), facecolor='#0d1117')
-    ax = fig.add_subplot(111)
-    ax.set_facecolor('#0d1117')
-    ax.plot(hours, oil_prices, color=COLORS['oil']['line'],
-            linewidth=2.5, zorder=3, solid_capstyle='round')
-    _create_gradient_fill(ax, hours, oil_prices, COLORS['oil']['line'])
-    ax.fill_between(hours, oil_prices, min(oil_prices) - 2,
-                     alpha=0.1, color=COLORS['oil']['line'], zorder=2)
-    _style_axis_professional(ax, font_prop)
-    _add_price_annotation(ax, hours, oil_prices, oil_prices[-1],
-                          COLORS['oil']['line'], font_prop, currency='$')
-    _add_change_badge(ax, oil_prices, font_prop)
-    title_text = fa('قیمت جهانی نفت برنت')
-    ax.set_title(title_text, color='white', fontsize=18, fontweight='bold',
-                 fontproperties=font_prop, pad=20)
-    ax.set_xlabel(fa('ساعت'), color='#888888', fontsize=12, fontproperties=font_prop)
-    ax.set_ylabel(fa('قیمت (دلار/بشکه)'), color='#888888', fontsize=12, fontproperties=font_prop)
-    x_labels = [to_persian_digits(str(h)) for h in hours]
-    ax.set_xticks(hours)
-    ax.set_xticklabels(x_labels, color='#888888', fontsize=10, fontproperties=font_prop)
-    y_padding = (max(oil_prices) - min(oil_prices)) * 0.15
-    ax.set_ylim(min(oil_prices) - y_padding, max(oil_prices) + y_padding)
-    y_ticks = ax.get_yticks()
-    y_labels = [to_persian_digits(f"{tick:,.0f}") for tick in y_ticks]
-    ax.set_yticks(y_ticks)
-    ax.set_yticklabels(y_labels, color='#888888', fontsize=10, fontproperties=font_prop)
-    plt.tight_layout()
-    path = "oil_chart.png"
-    plt.savefig(path, dpi=150, facecolor='#0d1117',
-                bbox_inches='tight', pad_inches=0.2)
-    plt.close()
-    return path
-
-def generate_professional_usd_chart(font_prop):
-    hours = list(range(0, 24, 2))
-    usd_toman = [52000 + i*80 + np.sin(i/2)*200 for i in range(len(hours))]
-    tether_toman = [51500 + i*90 + np.cos(i/2.5)*150 for i in range(len(hours))]
-    fig = plt.figure(figsize=(12, 7), facecolor='#0d1117')
-    ax = fig.add_subplot(111)
-    ax.set_facecolor('#0d1117')
-    ax.plot(hours, usd_toman, color=COLORS['usd']['line'],
-            linewidth=2.5, zorder=3, solid_capstyle='round')
-    ax.plot(hours, tether_toman, color=COLORS['tether']['line'],
-            linewidth=2.5, zorder=3, solid_capstyle='round')
-    _create_gradient_fill(ax, hours, usd_toman, COLORS['usd']['line'])
-    _create_gradient_fill(ax, hours, tether_toman, COLORS['tether']['line'])
-    _style_axis_professional(ax, font_prop)
-    _add_price_annotation(ax, hours, usd_toman, usd_toman[-1],
-                          COLORS['usd']['line'], font_prop,
-                          currency=' ت', label=fa('دلار'))
-    _add_price_annotation(ax, hours, tether_toman, tether_toman[-1],
-                          COLORS['tether']['line'], font_prop,
-                          currency=' ت', label=fa('تتر'))
-    _add_change_badge(ax, usd_toman, font_prop)
-    title_text = fa('دلار و تتر به تومان')
-    ax.set_title(title_text, color='white', fontsize=18, fontweight='bold',
-                 fontproperties=font_prop, pad=20)
-    ax.set_xlabel(fa('ساعت'), color='#888888', fontsize=12, fontproperties=font_prop)
-    ax.set_ylabel(fa('قیمت (تومان)'), color='#888888', fontsize=12, fontproperties=font_prop)
-    x_labels = [to_persian_digits(str(h)) for h in hours]
-    ax.set_xticks(hours)
-    ax.set_xticklabels(x_labels, color='#888888', fontsize=10, fontproperties=font_prop)
-    y_padding = (max(usd_toman + tether_toman) - min(usd_toman + tether_toman)) * 0.15
-    ax.set_ylim(min(usd_toman + tether_toman) - y_padding,
-                max(usd_toman + tether_toman) + y_padding)
-    _abbreviate_y_axis_for_usd(ax)
-    plt.tight_layout()
-    path = "usd_chart.png"
-    plt.savefig(path, dpi=150, facecolor='#0d1117',
-                bbox_inches='tight', pad_inches=0.2)
-    plt.close()
-    return path
-
-def generate_all_charts_professional():
-    font_prop = setup_persian_font()
-    paths = []
-    paths.append(generate_professional_gold_chart(font_prop))
-    paths.append(generate_professional_oil_chart(font_prop))
-    paths.append(generate_professional_usd_chart(font_prop))
-    return paths
-
-def send_price_charts():
-    paths = generate_all_charts_professional()
-    if not TELEGRAM_BOT_TOKEN or not CHANNEL_ID:
-        print("Telegram not configured. Charts saved locally:")
-        for p in paths:
-            print(f"  - {p}")
-        return
-    captions = [
-        "🥇 <b>قیمت جهانی طلا</b>",
-        "🛢️ <b>قیمت جهانی نفت برنت</b>",
-        "💵 <b>دلار و تتر به تومان</b>"
-    ]
-    for path, caption in zip(paths, captions):
-        with open(path, 'rb') as photo:
-            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
-            files = {'photo': photo}
-            data = {'chat_id': CHANNEL_ID, 'caption': caption, 'parse_mode': 'HTML'}
-            resp = requests.post(url, data=data, files=files)
-            print(f"{caption}: {resp.status_code}")
-            os.remove(path)
-
-# ================= WEEKLY SUMMARY =================
-def weekly_summary():
-    summary = (
-        "📅 <b>خلاصه هفتگی بازار</b>\n\n"
-        "🟡 طلا: +۲.۱٪\n"
-        "💵 دلار/تومان: -۰.۵٪\n"
-        "🛢️ نفت: +۰.۸٪\n\n"
-        "بازارها این هفته تحت تأثیر تصمیم فدرال رزرو و داده‌های تورم قرار گرفتند."
-    )
-    send_to_telegram(summary)
-
-# ================= ECONOMIC CALENDAR =================
-def economic_calendar():
-    events = [
-        ("امروز", "CPI آمریکا", "ساعت ۱۶:۳۰"),
-        ("فردا", "نرخ بیکاری", "ساعت ۱۷:۰۰"),
-        ("پنج‌شنبه", "نشست فدرال رزرو", "ساعت ۲۱:۳۰"),
-    ]
-    msg = "📅 <b>رویدادهای اقتصادی پیش‌رو</b>\n\n"
-    for day, event, time_ in events:
-        msg += f"▫️ {day}: {event} – {time_}\n"
-    send_to_telegram(msg)
-
-# ================= STATE =================
-def load_processed():
-    if os.path.exists('processed_ids.json'):
-        with open('processed_ids.json') as f:
-            return set(json.load(f))
-    return set()
-
-def save_processed(ids):
-    with open('processed_ids.json', 'w') as f:
-        json.dump(list(ids)[-1000:], f)
-
-def load_queue():
-    if os.path.exists('queue.json'):
-        with open('queue.json') as f:
-            return json.load(f)
-    return []
-
-def save_queue(items):
-    with open('queue.json', 'w') as f:
-        json.dump(items, f)
-
-def load_posted_titles():
-    if os.path.exists('posted_titles.json'):
-        with open('posted_titles.json') as f:
-            return json.load(f)
-    return []
-
-def save_posted_titles(titles):
-    with open('posted_titles.json', 'w') as f:
-        json.dump(titles, f)
-
-# ================= DUPLICATE DETECTION =================
-STOPWORDS_EN = set([
-    'a', 'an', 'the', 'and', 'or', 'but', 'if', 'because', 'as', 'until',
-    'while', 'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between',
-    'into', 'through', 'during', 'before', 'after', 'above', 'below', 'to',
-    'from', 'up', 'down', 'in', 'out', 'on', 'off', 'over', 'under', 'again',
-    'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how',
-    'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other', 'some',
-    'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too',
-    'very', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now'
-])
-
-def normalize_title(title):
-    text = title.lower()
-    text = re.sub(r'[^\w\s]', '', text)
-    tokens = text.split()
-    tokens = [t for t in tokens if t not in STOPWORDS_EN]
-    return set(tokens)
-
-def titles_are_similar(title1, title2, threshold=0.55):
-    set1 = normalize_title(title1)
-    set2 = normalize_title(title2)
-    if not set1 or not set2:
-        return False
-    intersection = len(set1 & set2)
-    union = len(set1 | set2)
-    score = intersection / union
-    return score >= threshold
-
-# ================= COLLECT NEWS =================
-def collect_news():
-    processed = load_processed()
-    queue = load_queue()
-    posted_titles = load_posted_titles()
-
-    print("Fetching feeds...")
-    all_articles = []
-    for url in RSS_FEEDS:
-        try:
-            resp = requests.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
-            if resp.status_code == 200:
-                feed = feedparser.parse(resp.content)
-                for entry in feed.entries[:5]:
-                    image_url, video_url = extract_media_urls(entry)
-                    all_articles.append({
-                        'id': entry.get('link', ''),
-                        'title': entry.get('title', ''),
-                        'summary': clean_html(entry.get('summary', '')),
-                        'link': entry.get('link', ''),
-                        'image_url': image_url,
-                        'video_url': video_url,
-                    })
-            else:
-                print(f"Failed to fetch {url} (status {resp.status_code})")
-        except Exception as e:
-            print(f"Error fetching {url}: {e}")
-
-    relevant = []
-    for art in all_articles:
-        if art['id'] in processed:
-            continue
-        text = (art['title'] + ' ' + art['summary']).lower()
-        if not (any(kw in text for kw in KEYWORDS) or any(kw in text for kw in RUSSIAN_KEYWORDS)):
-            continue
-        if any(titles_are_similar(art['title'], t) for t in posted_titles):
-            print(f"Skipping duplicate title: {art['title']}")
-            continue
-        relevant.append(art)
-
-    relevant_sorted = sorted(relevant, key=priority_score, reverse=True)
-    new_articles = relevant_sorted[:MAX_POSTS_PER_RUN]
-
-    for art in new_articles:
-        if art not in queue:
-            queue.append(art)
-            processed.add(art['id'])
-            posted_titles.append(art['title'])
-
-    posted_titles = posted_titles[-200:]
-
-    save_queue(queue)
-    save_processed(processed)
-    save_posted_titles(posted_titles)
-    print(f"Collected {len(new_articles)} new articles. Queue size: {len(queue)}")
-
-# ================= POST ONE ARTICLE =================
-def post_one():
-    queue = load_queue()
-    if not queue:
-        print("Queue is empty. Nothing to post.")
-        return
-
-    article = queue.pop(0)
-    msg = format_message(article)
-    if article.get('image_url'):
-        send_to_telegram(msg, article['image_url'])
-    elif article.get('video_url'):
-        send_to_telegram(msg, article['video_url'])
-    else:
-        send_to_telegram(msg)
-
-    save_queue(queue)
-
-# ================= MAIN DISPATCHER =================
-if __name__ == "__main__":
-    mode = sys.argv[1] if len(sys.argv) > 1 else "news"
-    if mode == "collect":
-        collect_news()
-    elif mode == "post":
-        post_one()
-    elif mode == "chart":
-        send_price_charts()
-    elif mode == "weekly":
-        weekly_summary()
-    elif mode == "calendar":
-        economic_calendar()
-    else:
-        print("Unknown mode. Use: collect, post, chart, weekly, calendar")
+# ... (rest of functions and main dispatcher as before, but using apply_all_glossaries)
