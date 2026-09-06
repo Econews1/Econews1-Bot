@@ -16,8 +16,7 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 
 from config import *
-from translator import to_persian_digits, fa
-
+from translator import to_persian_digits, fa, setup_persian_font
 # ================= PROFESSIONAL CHART STYLING =================
 COLORS = {
     'gold': {'line': '#FFD700', 'fill_light': '#FFD70022', 'fill_dark': '#FFD70000', 'text': '#FFD700'},
