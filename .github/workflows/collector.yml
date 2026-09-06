@@ -24,7 +24,7 @@ jobs:
         run: |
           git config --local user.email "bot@users.noreply.github.com"
           git config --local user.name "News Bot"
-          for f in queue.json processed_ids.json last_working_model.txt; do
+          for f in queue.json processed_ids.json last_working_model.txt posted_titles.json; do
             [ -f "$f" ] && git add "$f"
           done
           git diff --cached --quiet || git commit -m "Update bot state"
