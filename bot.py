@@ -5,6 +5,7 @@ import os
 import re
 import time
 import sys
+import difflib
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -66,9 +67,9 @@ RSS_FEEDS = [
 
     # Persian sources
     "https://www.fardayeeghtesad.com/rss",
-    "https://www.eghtesadonline.com/fa/updates/13",
-    "https://www.eghtesadonline.com/fa/updates/27",
-    "https://www.eghtesadonline.com/fa/updates/8",
+    "https://www.eghtesadonline.com/fa/updates/13",   # gold & currency
+    "https://www.eghtesadonline.com/fa/updates/27",   # oil & energy
+    "https://www.eghtesadonline.com/fa/updates/8",    # macro
     "https://www.mehrnews.com/rss",
 ]
 
@@ -88,7 +89,7 @@ FALLBACK_MODELS = [
 ]
 MODEL_CACHE_FILE = "last_working_model.txt"
 
-# ================= CORE PRICE TERMS =================
+# ================= CORE PRICE TERMS (Strict filter) =================
 CORE_PRICE_TERMS = [
     'fed', 'fomc', 'ecb', 'boj', 'boe', 'rate hike', 'rate cut',
     'interest rate decision', 'monetary policy', 'central bank',
@@ -206,8 +207,7 @@ def fa(text):
         print(f"Error in fa(): {e}")
         return text
 
-# ================= GLOSSARIES =================
-# Economic glossary (full)
+# ================= COMPREHENSIVE ECONOMIC GLOSSARY =================
 ECONOMIC_GLOSSARY = {
     'Gold': 'طلا', 'Spot Gold': 'طلا نقدی', 'Gold Bar': 'شمش طلا',
     'Gold Bullion': 'طلای آبشده', 'Gold Coin': 'سکه طلا',
@@ -552,8 +552,45 @@ PERSIAN_NAME_CORRECTIONS = {
     'ستاد فرماندهی مرکزی': 'سنتکام',
 }
 
+# ================= PROPER NOUN CORRECTIONS =================
+PROPER_NOUN_CORRECTIONS = {
+    'حزب راستگرای دوردست': 'حزب راستگرای افراطی',
+    'نودیدیا': 'انویدیا',
+    'هاجینگ فیس': 'هاگینگ فیس',
+}
+
+# ================= CORRECT TERMS FOR FUZZY MATCHING =================
+CORRECT_TERMS = [
+    'انویدیا',
+    'هاگینگ فیس',
+    'راستگرای افراطی',
+    'نیروهای سپاه',
+    'جزیره خارگ',
+    'سنتکام',
+    'فدرال رزرو',
+    'بانک مرکزی اروپا',
+    'اوپک',
+]
+
+# ================= FUZZY CORRECTION =================
+def fuzzy_correct_text(text, candidates, cutoff=0.85):
+    if not text:
+        return text
+    tokens = re.findall(r'\S+', text)
+    corrected_tokens = []
+    for token in tokens:
+        core_token = token.rstrip('،؛.!?؟')
+        match = difflib.get_close_matches(core_token, candidates, n=1, cutoff=cutoff)
+        if match:
+            new_token = match[0] + token[len(core_token):]
+            corrected_tokens.append(new_token)
+        else:
+            corrected_tokens.append(token)
+    return ' '.join(corrected_tokens)
+
 # ================= TRANSLATION IMPROVEMENTS =================
 def apply_all_glossaries(text):
+    # Exact replacements
     for wrong, right in PERSIAN_CORRECTIONS.items():
         text = text.replace(wrong, right)
     for eng, fa_text in IRAN_RESPECT_GLOSSARY.items():
@@ -567,6 +604,12 @@ def apply_all_glossaries(text):
             text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
     for wrong, right in PERSIAN_NAME_CORRECTIONS.items():
         text = text.replace(wrong, right)
+    for wrong, right in PROPER_NOUN_CORRECTIONS.items():
+        text = text.replace(wrong, right)
+
+    # Fuzzy correction for proper nouns
+    text = fuzzy_correct_text(text, CORRECT_TERMS, cutoff=0.85)
+
     return text
 
 def detect_language(text):
