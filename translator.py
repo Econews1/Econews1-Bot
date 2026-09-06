@@ -5,7 +5,77 @@ import re
 import requests
 import os
 import json
+import arabic_reshaper
+from bidi.algorithm import get_display
+
 from config import *
+
+# ================= PERSIAN TEXT PROCESSING =================
+def to_persian_digits(text):
+    if not text:
+        return text
+    persian_digits = '۰۱۲۳۴۵۶۷۸۹'
+    western_digits = '0123456789'
+    translation = str.maketrans(western_digits, persian_digits)
+    return text.translate(translation)
+
+def fa(text):
+    if not text:
+        return text
+    try:
+        text = to_persian_digits(text)
+        reshaped = arabic_reshaper.reshape(text)
+        return reshaped
+    except Exception as e:
+        print(f"Error in fa(): {e}")
+        return text
+
+# ================= PERSIAN FONT SETUP =================
+_persian_font_prop = None
+
+def setup_persian_font():
+    global _persian_font_prop
+    if _persian_font_prop is not None:
+        return _persian_font_prop
+
+    font_path = "persian_font.ttf"
+    urls = [
+        "https://github.com/rastikerdar/vazirmatn/raw/master/fonts/ttf/Vazirmatn-Regular.ttf",
+        "https://raw.githubusercontent.com/rastikerdar/vazirmatn/master/fonts/ttf/Vazirmatn-Regular.ttf",
+        "https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/fonts/ttf/Vazirmatn-Regular.ttf",
+        "https://github.com/rastikerdar/vazirmatn/raw/master/fonts/ttf/Vazirmatn-Bold.ttf",
+        "https://raw.githubusercontent.com/rastikerdar/vazirmatn/master/fonts/ttf/Vazirmatn-Bold.ttf",
+    ]
+    if not os.path.exists(font_path):
+        for url in urls:
+            try:
+                r = requests.get(url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
+                if r.status_code == 200 and len(r.content) > 10000:
+                    with open(font_path, 'wb') as f:
+                        f.write(r.content)
+                    break
+            except Exception as e:
+                print(f"Font download failed: {e}")
+                continue
+
+    if os.path.exists(font_path):
+        try:
+            import matplotlib.font_manager as fm
+            fm.fontManager.addfont(font_path)
+            prop = fm.FontProperties(fname=font_path)
+            import matplotlib.pyplot as plt
+            plt.rcParams['font.family'] = 'sans-serif'
+            plt.rcParams['font.sans-serif'] = [prop.get_name(), 'DejaVu Sans']
+            plt.rcParams['axes.unicode_minus'] = False
+            _persian_font_prop = prop
+            print(f"Persian font loaded: {prop.get_name()}")
+            return prop
+        except Exception as e:
+            print(f"Font registration failed: {e}")
+
+    print("Warning: Persian font not loaded. Using default.")
+    _persian_font_prop = None
+    return None
 
 # ================= FUZZY CORRECTION =================
 def fuzzy_correct_text(text, candidates, cutoff=0.85):
