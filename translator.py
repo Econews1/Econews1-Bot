@@ -77,6 +77,13 @@ def setup_persian_font():
     _persian_font_prop = None
     return None
 
+# ================= GEOGRAPHIC NAMES =================
+def apply_geo_names(text):
+    """Replace English geographic names with Persian equivalents."""
+    for eng, fa in GEO_NAMES.items():
+        text = re.sub(r'\b' + re.escape(eng) + r'\b', fa, text)
+    return text
+
 # ================= FUZZY CORRECTION =================
 def fuzzy_correct_text(text, candidates, cutoff=0.85):
     if not text:
@@ -93,63 +100,53 @@ def fuzzy_correct_text(text, candidates, cutoff=0.85):
             corrected_tokens.append(token)
     return ' '.join(corrected_tokens)
 
-# ================= CLEANING =================
+# ================= MARKDOWN REMOVAL =================
 def remove_markdown(text):
-    """Remove markdown symbols and table structures."""
-    # Remove lines with headings
     text = re.sub(r'^#+\s*', '', text, flags=re.MULTILINE)
-    # Remove table rows
     text = re.sub(r'\|.*?\|', '', text)
-    # Remove emphasis markers
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
     text = re.sub(r'\*(.*?)\*', r'\1', text)
-    # Remove bullet points
     text = re.sub(r'^\s*[-*]\s+', '', text, flags=re.MULTILINE)
     return text.strip()
 
 # ================= TRANSLATION IMPROVEMENTS =================
 def apply_all_glossaries(text):
-    # First, remove markdown
     text = remove_markdown(text)
-
-    # Apply corrections in a specific order to avoid duplication
     for wrong, right in PERSIAN_CORRECTIONS.items():
         text = text.replace(wrong, right)
-
-    # Iran respect glossary (English terms)
     for eng, fa_text in IRAN_RESPECT_GLOSSARY.items():
         text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
-
-    # Economic glossary
     for eng, fa_text in ECONOMIC_GLOSSARY.items():
         text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
-
-    # Iran specific glossary: use regex with negative lookbehind to avoid double prefixes
+    # Apply geographic names
+    text = apply_geo_names(text)
     for eng, fa_text in IRAN_SPECIFIC_GLOSSARY.items():
-        # Only replace if not already preceded by "نیروهای " or similar
         pattern = r'(?<!نیروهای\s)' + re.escape(eng)
         text = re.sub(pattern, fa_text, text)
-
-    # Country glossaries
     for country_dict in COUNTRY_GLOSSARY.values():
         for eng, fa_text in country_dict.items():
             text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
-
-    # Persian name corrections
     for wrong, right in PERSIAN_NAME_CORRECTIONS.items():
         text = text.replace(wrong, right)
-
-    # Proper noun corrections
     for wrong, right in PROPER_NOUN_CORRECTIONS.items():
         text = text.replace(wrong, right)
-
-    # Fuzzy correction for proper nouns
     text = fuzzy_correct_text(text, CORRECT_TERMS, cutoff=0.85)
 
-    # Clean duplicate phrases like "نیروهای نیروهای"
+    # Remove repeated phrases
     text = re.sub(r'\b(نیروهای\s){2,}', 'نیروهای ', text)
     text = re.sub(r'\b(شورای اسلامی\s){2,}', 'شورای اسلامی ', text)
     text = re.sub(r'\b(رهبر معظم\s){2,}', 'رهبر معظم ', text)
+
+    # Fix common grammatical errors
+    corrections = {
+        'پاسخ ایجاد خواهد کرد': 'پاسخ خواهد داد',
+        'خوشحال می‌کند': 'حمایت می‌کند',
+        'قایق را ضبط کرد': 'کشتی را توقیف کرد',
+        'سازمان ملل متحد': 'سازمان ملل متحد',
+        'کشتی در حال حرکت به سمت تصادف است': 'کشتی در حال تصادف است',
+    }
+    for wrong, right in corrections.items():
+        text = text.replace(wrong, right)
 
     return text.strip()
 
@@ -163,16 +160,21 @@ def detect_language(text):
     else:
         return "en"
 
-def simplify_to_english(text):
+# ================= NEW: PREPROCESS ENGLISH =================
+def preprocess_english(text):
+    """
+    Rewrite text into simple, complete English sentences.
+    Merge fragments, add missing subjects/verbs, remove markdown.
+    """
     if not text:
         return ""
     prompt = (
         "You are a professional news editor. "
         "Rewrite the following text into simple, complete English sentences. "
-        "Use short sentences with clear subject-verb-object order. "
-        "Avoid complex clauses. Remove any markdown, tables, or explanations. "
-        "If the text is not English, first translate it into simple English. "
-        "Output only the simplified English, nothing else."
+        "Merge short sentences into one if they are related. "
+        "Add missing subjects, verbs, or objects. "
+        "Remove any markdown, tables, or explanations. "
+        "Output only the rewritten English text, nothing else."
     )
     result = translate_with_custom_prompt(prompt, text)
     return result.strip()
@@ -365,25 +367,6 @@ def translate_to_persian(text, custom_prompt=None):
             save_cached_model(model)
             return result
     return text
-
-def translate_summary_to_persian(title_en, summary_en):
-    if not summary_en:
-        return ""
-    prompt = (
-        "You are a professional financial news writer. "
-        "Based on the title and the provided summary, write a concise Persian summary (2-3 sentences max) that explains the main event, involved country/actor, key numbers, and reason. "
-        "Do NOT repeat the title. Use simple Persian sentences with verbs at the end. "
-        "Convert all numbers to Persian digits. Do NOT include any English words or Latin characters. "
-        "If the summary is in a language other than English, first rewrite it into simple English, then translate to Persian. "
-        "Never refuse, never apologize, just output the final Persian summary."
-    )
-    user_content = f"Title: {title_en}\nSummary: {summary_en}"
-    result = translate_with_custom_prompt(prompt, user_content)
-    if result and has_latin(result):
-        forced = force_persian(result)
-        if forced:
-            result = forced
-    return result
 
 def translate_with_custom_prompt(system_prompt, user_content):
     if not GROQ_API_KEY:
