@@ -18,46 +18,47 @@ RSS_FEEDS = [
     "https://www.ecb.europa.eu/rss/press.html",
     "https://www.eia.gov/rss/todayinenergy.xml",
 
-    # Global news (business sections) – existing
+    # Global news (business sections)
     "https://rss.dw.com/rdf/rss-en-bus",
     "https://www.france24.com/en/business/rss",
     "https://www.aljazeera.com/xml/rss/all.xml",
     "https://www.theguardian.com/uk/business/rss",
 
-    # Country-specific business – existing
+    # Country‑specific business
     "https://www.telegraph.co.uk/business/rss.xml",
     "https://tass.com/rss/v2.xml",
     "https://scmp.com/rss/4/feed",
 
-    # Additional financial – existing
+    # Additional financial
     "https://www.investing.com/rss/news_25.rss",
     "https://www.marketwatch.com/rss/topstories",
 
-    # Persian economic sources (skip translation) – existing
-    "https://www.fardayeeghtesad.com/rss",
+    # ----- PERSIAN ECONOMIC RSS (where available) -----
     "https://www.eghtesadonline.com/fa/updates/13",
     "https://www.eghtesadonline.com/fa/updates/27",
     "https://www.eghtesadonline.com/fa/updates/8",
+    "https://www.mehrnews.com/rss/tp/25",          # اقتصاد
+    "https://www.mehrnews.com/rss/tp/44",          # بانک و بورس
+    "https://www.isna.ir/rss/tp/3",                # اقتصادی
+    "https://www.irna.ir/rss/tp/3",                # اقتصادی
+    "https://www.tasnimnews.com/fa/rss/feed/0/8/0/",   # اقتصادی
+    "https://www.tabnak.ir/fa/rss/22",             # اقتصادی
+    "https://www.shana.ir/rss/tp/14",              # نفت
+    "https://www.shana.ir/rss/tp/18",              # گاز
+    "https://www.shana.ir/rss/tp/4",               # پتروشیمی
+    "https://www.shana.ir/rss/tp/5",               # بین‌الملل
+    "https://www.irasin.ir/rss/tp/23",             # اقتصاد
+    "https://www.irasin.ir/rss/tp/75",             # اقتصاد جهان
+    "https://www.irasin.ir/rss/tp/80",             # بازارها
+    "https://www.irasin.ir/rss/tp/34",             # نفت و گاز
+    "https://www.sedayebourse.ir/rss/tp/9042",     # اخبار اقتصادی
+    "https://www.sedayebourse.ir/rss/tp/2",        # بازار سهام
+    "https://www.foodpress.ir/rss/tp/7034",        # اقتصادی
+    "https://www.foodpress.ir/rss/tp/6033",        # بازار
+    "https://eximland.ir/rss",                     # صادرات و واردات
+    "https://cbi.ir/rss",                          # بانک مرکزی
 
-    # ===== NEW IRANIAN SOURCES =====
-    "https://www.shana.ir/rss/tp/14",        # نفت (Oil)
-    "https://www.shana.ir/rss/tp/18",        # گاز (Gas)
-    "https://www.shana.ir/rss/tp/4",         # پتروشیمی (Petrochemical)
-    "https://www.shana.ir/rss/tp/5",         # بین‌الملل (International)
-    "https://www.irasin.ir/rss/tp/23",       # اقتصاد (Economy)
-    "https://www.irasin.ir/rss/tp/75",       # اقتصاد جهان (World Economy)
-    "https://www.irasin.ir/rss/tp/80",       # بازارها (Markets)
-    "https://www.irasin.ir/rss/tp/34",       # نفت، گاز و پتروشیمی (Energy)
-    "https://www.sedayebourse.ir/rss/tp/9042",   # اخبار اقتصادی
-    "https://www.sedayebourse.ir/rss/tp/2",      # بازار سهام (Stock Market)
-    "https://www.foodpress.ir/rss/tp/7034",      # اقتصادی
-    "https://www.foodpress.ir/rss/tp/6033",      # بازار
-    "http://shada.ir/rss/tp/14",                 # اقتصاد کلان (Macro)
-    "http://shada.ir/rss/tp/131",                # بانک (Banking)
-    "https://eximland.ir/rss",                   # صادرات و واردات
-    "https://cbi.ir/rss",                        # بانک مرکزی (Central Bank)
-
-    # ===== NEW GLOBAL SOURCES =====
+    # ----- GLOBAL ADDITIONAL -----
     "http://feeds.bbci.co.uk/news/business/rss.xml",
     "https://feeds.reuters.com/Reuters/worldNews",
     "https://www.reutersagency.com/feed/?best-regions=world&post_type=best",
@@ -65,11 +66,24 @@ RSS_FEEDS = [
     "https://www.marketwatch.com/rss/marketpulse",
     "https://www.investing.com/rss/news_1063.rss",   # Stocks
     "https://www.investing.com/rss/news_14.rss",     # Forex
-    "https://eulerpool.com/news/feed.xml",
     "https://en.mercopress.com/rss/economy",
     "https://en.mercopress.com/rss/energy",
 ]
 
+# Sites that do NOT provide RSS – we will scrape them separately
+SCRAPE_SOURCES = [
+    {
+        'name': 'Farsnews Economy',
+        'url': 'https://farsnews.ir/Economy/posts',
+        'type': 'farsnews'
+    },
+    {
+        'name': 'Donya-e-Eqtesad Economy',
+        'url': 'https://donya-e-eqtesad.com',
+        'type': 'donya'
+    },
+    # Add more if needed
+]
 
 # ================= PROHIBITED SOURCES =================
 PROHIBITED_SOURCES = [
@@ -83,9 +97,7 @@ PROHIBITED_SOURCES = [
     'manoto.tv',
     'iran-international.com',
     'iranwire.com',
-    # you may add more if needed
 ]
-
 
 # ================= PERSIAN SOURCE DOMAINS =================
 PERSIAN_SOURCE_DOMAINS = [
@@ -102,8 +114,7 @@ PERSIAN_SOURCE_DOMAINS = [
     'tehrantimes.com',
     'presstv.co.uk',
     'presstv.ir',
-
-    # New Iranian domains
+    # New additions
     'shana.ir',
     'irasin.ir',
     'sedayebourse.ir',
@@ -111,6 +122,8 @@ PERSIAN_SOURCE_DOMAINS = [
     'shada.ir',
     'eximland.ir',
     'cbi.ir',
+    'tasnimnews.com',
+    'tabnak.ir',
 ]
 # ================= BOT SETTINGS =================
 POST_INTERVAL = 360          # 6 minutes between posts
