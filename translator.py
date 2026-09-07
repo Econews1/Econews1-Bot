@@ -1,25 +1,25 @@
 # translator.py
 
-import difflib
 import re
 import requests
 import os
-import json
+import difflib
 import arabic_reshaper
 from bidi.algorithm import get_display
 
 from config import *
 
+
 # ================= PERSIAN TEXT PROCESSING =================
 def to_persian_digits(text):
     if not text:
         return text
-    persian_digits = '۰۱۲۳۴۵۶۷۸۹'
-    western_digits = '0123456789'
-    translation = str.maketrans(western_digits, persian_digits)
+    translation = str.maketrans('0123456789', '۰۱۲۳۴۵۶۷۸۹')
     return text.translate(translation)
 
+
 def fa(text):
+    """Prepare Persian text for matplotlib rendering."""
     if not text:
         return text
     try:
@@ -29,6 +29,7 @@ def fa(text):
     except Exception as e:
         print(f"Error in fa(): {e}")
         return text
+
 
 # ================= PERSIAN FONT SETUP =================
 _persian_font_prop = None
@@ -40,11 +41,8 @@ def setup_persian_font():
 
     font_path = "persian_font.ttf"
     urls = [
-        "https://github.com/rastikerdar/vazirmatn/raw/master/fonts/ttf/Vazirmatn-Regular.ttf",
         "https://raw.githubusercontent.com/rastikerdar/vazirmatn/master/fonts/ttf/Vazirmatn-Regular.ttf",
         "https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/fonts/ttf/Vazirmatn-Regular.ttf",
-        "https://github.com/rastikerdar/vazirmatn/raw/master/fonts/ttf/Vazirmatn-Bold.ttf",
-        "https://raw.githubusercontent.com/rastikerdar/vazirmatn/master/fonts/ttf/Vazirmatn-Bold.ttf",
     ]
     if not os.path.exists(font_path):
         for url in urls:
@@ -61,9 +59,9 @@ def setup_persian_font():
     if os.path.exists(font_path):
         try:
             import matplotlib.font_manager as fm
+            import matplotlib.pyplot as plt
             fm.fontManager.addfont(font_path)
             prop = fm.FontProperties(fname=font_path)
-            import matplotlib.pyplot as plt
             plt.rcParams['font.family'] = 'sans-serif'
             plt.rcParams['font.sans-serif'] = [prop.get_name(), 'DejaVu Sans']
             plt.rcParams['axes.unicode_minus'] = False
@@ -73,84 +71,418 @@ def setup_persian_font():
         except Exception as e:
             print(f"Font registration failed: {e}")
 
-    print("Warning: Persian font not loaded. Using default.")
+    print("Warning: Persian font not loaded.")
     _persian_font_prop = None
     return None
 
-# ================= GEOGRAPHIC NAMES =================
-def apply_geo_names(text):
-    """Replace English geographic names with Persian equivalents."""
-    for eng, fa in GEO_NAMES.items():
-        text = re.sub(r'\b' + re.escape(eng) + r'\b', fa, text)
-    return text
 
-# ================= FUZZY CORRECTION =================
-def fuzzy_correct_text(text, candidates, cutoff=0.85):
+# ================= TEXT CLEANING =================
+def clean_text(text):
+    """Remove HTML, markdown, LLM artifacts, and clean up."""
     if not text:
-        return text
-    tokens = re.findall(r'\S+', text)
-    corrected_tokens = []
-    for token in tokens:
-        core_token = token.rstrip('،؛.!?؟')
-        match = difflib.get_close_matches(core_token, candidates, n=1, cutoff=cutoff)
-        if match:
-            new_token = match[0] + token[len(core_token):]
-            corrected_tokens.append(new_token)
-        else:
-            corrected_tokens.append(token)
-    return ' '.join(corrected_tokens)
-
-# ================= MARKDOWN REMOVAL =================
-def remove_markdown(text):
+        return ""
+    
+    # Remove HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+    
+    # Remove markdown
     text = re.sub(r'^#+\s*', '', text, flags=re.MULTILINE)
     text = re.sub(r'\|.*?\|', '', text)
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
     text = re.sub(r'\*(.*?)\*', r'\1', text)
-    text = re.sub(r'^\s*[-*]\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^\s*[-*•]\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
+    
+    # Remove LLM artifacts
+    for pattern in LLM_ARTIFACT_PATTERNS:
+        text = re.sub(pattern, '', text)
+    
+    # Remove tables
+    text = re.sub(r'\|.*?\|.*?\|', '', text)
+    
+    # Clean up whitespace
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    text = re.sub(r'\s+', ' ', text)
+    
     return text.strip()
 
-# ================= TRANSLATION IMPROVEMENTS =================
-def apply_all_glossaries(text):
-    text = remove_markdown(text)
-    for wrong, right in PERSIAN_CORRECTIONS.items():
-        text = text.replace(wrong, right)
-    for eng, fa_text in IRAN_RESPECT_GLOSSARY.items():
+
+def remove_repeated_words(text):
+    """Remove any repeated word patterns."""
+    if not text:
+        return text
+    
+    # Use the pattern from config
+    text = re.sub(REPEATED_WORD_PATTERN, r'\1', text, flags=re.IGNORECASE)
+    
+    # Additional specific fixes
+    text = re.sub(r'نیروهای\s+نیروهای\s+', 'نیروهای ', text)
+    text = re.sub(r'شورای\s+شورای\s+', 'شورای ', text)
+    text = re.sub(r'رهبر\s+رهبر\s+', 'رهبر ', text)
+    text = re.sub(r'معظم\s+معظم\s+', 'معظم ', text)
+    
+    return text
+
+
+def apply_persian_fixes(text):
+    """Apply all Persian post-processing fixes."""
+    if not text:
+        return text
+    
+    # Clean LLM artifacts
+    text = clean_text(text)
+    
+    # Apply grammar fixes
+    for wrong, correct in GRAMMAR_FIXES.items():
+        text = text.replace(wrong, correct)
+    
+    # Apply Iran respect terms
+    for eng, fa_text in IRAN_RESPECT.items():
         text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
-    for eng, fa_text in ECONOMIC_GLOSSARY.items():
+    
+    # Apply geographic names (English -> Persian)
+    for eng, fa_text in GEO_NAMES.items():
         text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
-    # Apply geographic names
-    text = apply_geo_names(text)
-    for eng, fa_text in IRAN_SPECIFIC_GLOSSARY.items():
-        pattern = r'(?<!نیروهای\s)' + re.escape(eng)
-        text = re.sub(pattern, fa_text, text)
-    for country_dict in COUNTRY_GLOSSARY.values():
-        for eng, fa_text in country_dict.items():
-            text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
-    for wrong, right in PERSIAN_NAME_CORRECTIONS.items():
-        text = text.replace(wrong, right)
-    for wrong, right in PROPER_NOUN_CORRECTIONS.items():
-        text = text.replace(wrong, right)
-    text = fuzzy_correct_text(text, CORRECT_TERMS, cutoff=0.85)
+    
+    # Remove repeated words
+    text = remove_repeated_words(text)
+    
+    # Convert to Persian digits
+    text = to_persian_digits(text)
+    
+    # Clean up extra whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    return text
 
-    # Remove repeated phrases
-    text = re.sub(r'\b(نیروهای\s){2,}', 'نیروهای ', text)
-    text = re.sub(r'\b(شورای اسلامی\s){2,}', 'شورای اسلامی ', text)
-    text = re.sub(r'\b(رهبر معظم\s){2,}', 'رهبر معظم ', text)
 
-    # Fix common grammatical errors
-    corrections = {
-        'پاسخ ایجاد خواهد کرد': 'پاسخ خواهد داد',
-        'خوشحال می‌کند': 'حمایت می‌کند',
-        'قایق را ضبط کرد': 'کشتی را توقیف کرد',
-        'سازمان ملل متحد': 'سازمان ملل متحد',
-        'کشتی در حال حرکت به سمت تصادف است': 'کشتی در حال تصادف است',
-    }
-    for wrong, right in corrections.items():
-        text = text.replace(wrong, right)
+# ================= ECONOMIC FILTER =================
+def is_economic_news(title, summary):
+    """
+    STRICT filter: Only pass news that directly mentions economic factors
+    that affect gold, oil, USD, or major markets.
+    """
+    text = f"{title} {summary}".lower()
+    
+    # First check if any blocked term is present
+    for term in BLOCKED_TERMS:
+        if term in text:
+            return False, f"blocked: {term}"
+    
+    # Check if at least one economic term is present
+    economic_count = 0
+    for term in REQUIRED_ECONOMIC_TERMS:
+        if term in text:
+            economic_count += 1
+    
+    if economic_count >= 1:
+        return True, "passed"
+    
+    return False, "no economic terms"
 
-    return text.strip()
 
+def is_persian_economic(title, summary):
+    """Check if Persian text contains economic keywords."""
+    text = f"{title} {summary}"
+    
+    # Check for blocked Persian terms
+    for term in BLOCKED_TERMS:
+        if term in text:
+            return False, f"blocked: {term}"
+    
+    # Check for economic keywords
+    for term in PERSIAN_ECONOMIC_KEYWORDS:
+        if term in text:
+            return True, "passed"
+    
+    return False, "no economic keywords"
+
+
+def is_prohibited_source(url):
+    """Check if URL is from a prohibited source."""
+    for source in PROHIBITED_SOURCES:
+        if source in url:
+            return True
+    return False
+
+
+def is_persian_source(url):
+    """Check if URL is from a Persian source (skip translation)."""
+    for domain in PERSIAN_SOURCE_DOMAINS:
+        if domain in url:
+            return True
+    return False
+
+
+# ================= GROQ API =================
+def call_groq(system_prompt, user_text, max_tokens=400, temperature=0.1):
+    """Call Groq API with strict prompting."""
+    if not GROQ_API_KEY:
+        return ""
+    
+    # Try primary model first
+    models_to_try = [TRANSLATION_MODEL] + FALLBACK_MODELS
+    
+    for model in models_to_try:
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_text}
+            ],
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "top_p": 0.9
+        }
+        
+        try:
+            resp = requests.post(url, headers=headers, json=data, timeout=30)
+            if resp.status_code == 200:
+                result = resp.json()['choices'][0]['message']['content'].strip()
+                # Remove think tags
+                result = re.sub(r'<\/?think>', '', result)
+                # Remove markdown
+                result = clean_text(result)
+                if result and len(result) > 10:
+                    return result
+            elif resp.status_code == 429:
+                # Rate limited, wait and retry
+                print(f"  Rate limited, waiting...")
+                time.sleep(5)
+                continue
+        except Exception as e:
+            print(f"  Groq error with {model}: {e}")
+            continue
+    
+    return ""
+
+
+def simplify_english(text):
+    """Step 1: Simplify English into complete, grammatically correct sentences."""
+    if not text:
+        return ""
+    
+    prompt = """Rewrite this news text as 2-3 simple, complete English sentences.
+
+RULES:
+- Each sentence MUST have a subject and verb
+- Merge related short sentences into one complete sentence
+- Remove any tables, lists, or markdown
+- Keep only the main economic facts
+- Output ONLY the rewritten sentences, nothing else
+
+Example input: "Gold prices rose. This happened after the Fed meeting. Strong dollar."
+Example output: "Gold prices rose after the Federal Reserve meeting, despite a strong dollar."
+
+Text to rewrite: """
+    
+    result = call_groq(prompt, text, max_tokens=200)
+    
+    # If API fails, do basic cleanup
+    if not result:
+        # Simple sentence merging as fallback
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        merged = ' '.join(sentences[:3])
+        result = clean_text(merged)
+    
+    return result
+
+
+def translate_to_persian(english_text):
+    """Step 2: Translate simplified English to natural Persian."""
+    if not english_text:
+        return ""
+    
+    prompt = """Translate this English news to Persian (Farsi).
+
+STRICT RULES:
+1. Output ONLY the Persian translation
+2. NO English words in output
+3. NO explanations, notes, or commentary
+4. NO markdown, tables, or formatting
+5. Use natural Persian sentence structure
+6. Use these Persian terms exactly:
+   - Federal Reserve → فدرال رزرو
+   - Interest rate → نرخ بهره
+   - Inflation → تورم
+   - GDP → تولید ناخالص داخلی
+   - Unemployment → بیکاری
+   - Oil → نفت
+   - Gold → طلا
+   - Dollar → دلار
+   - Central Bank → بانک مرکزی
+   - Sanctions → تحریم
+   - OPEC → اوپک
+
+7. Geographic names:
+   - United States → ایالات متحده
+   - Russia → روسیه
+   - China → چین
+   - Germany → آلمان
+   - France → فرانسه
+   - UK → بریتانیا
+   - Japan → ژاپن
+   - Ukraine → اوکراین
+   - Iran → ایران
+   - Saudi Arabia → عربستان سعودی
+   - Saxony-Anhalt → زاکسن-آنهالت
+
+8. Names:
+   - Zelensky → زلنسکی
+   - Putin → پوتین
+   - Trump → ترامپ
+   - Khamenei → خامنه‌ای
+   - Pezeshkian → پزشکیان
+
+9. If "Supreme Leader" → رهبر معظم
+10. If "Iranian government" → دولت ایران
+11. Numbers use Persian digits (۱۲۳)
+
+Input: """
+    
+    result = call_groq(prompt, english_text, max_tokens=300)
+    
+    if not result:
+        return ""
+    
+    # Post-processing
+    result = apply_persian_fixes(result)
+    
+    return result
+
+
+def validate_translation(persian_text, english_text):
+    """Step 3: Validate translation quality."""
+    if not persian_text:
+        return False, "empty"
+    
+    # Check length
+    if len(persian_text) < 15:
+        return False, "too short"
+    
+    if len(persian_text) > 600:
+        return False, "too long"
+    
+    # Check for LLM artifacts
+    artifact_indicators = [
+        'ترجمه', 'خلاصه', 'نکات', 'دلیل', 'تحلیل', 'ساختار',
+        'Here', 'Translation', 'Note', 'explain', 'output'
+    ]
+    for indicator in artifact_indicators:
+        if indicator in persian_text[:80]:
+            return False, f"contains '{indicator}'"
+    
+    # Check Persian character ratio
+    persian_chars = len(re.findall(r'[\u0600-\u06FF]', persian_text))
+    total_chars = len(persian_text.strip())
+    
+    if total_chars > 0 and persian_chars / total_chars < 0.6:
+        return False, "not Persian enough"
+    
+    # Check for broken phrases
+    broken_phrases = [
+        'معظم معظم', 'شورای شورای', 'نیروهای نیروهای',
+        'ارزش از ارزش', 'پاسخ ایجاد', 'خوشحال می‌کند',
+        'معظمی', 'دوردست', 'ساکسونی آنها'
+    ]
+    for phrase in broken_phrases:
+        if phrase in persian_text:
+            return False, f"broken phrase: {phrase}"
+    
+    return True, "valid"
+
+
+def translate_news_article(article):
+    """
+    Full translation pipeline:
+    1. Check source type (Persian vs English)
+    2. Apply economic filter
+    3. For English: Simplify → Translate → Validate → Fix
+    4. For Persian: Apply fixes directly
+    """
+    title = article.get('title', '')
+    summary = article.get('summary', '')[:200]  # Limit summary length
+    source_url = article.get('link', '')
+    
+    # Check for prohibited sources
+    if is_prohibited_source(source_url):
+        return None, None
+    
+    # Check if from Persian source (skip translation)
+    if is_persian_source(source_url):
+        # Apply economic filter
+        is_econ, reason = is_persian_economic(title, summary)
+        if is_econ:
+            # Apply fixes to Persian text
+            fixed_title = apply_persian_fixes(title)
+            fixed_summary = apply_persian_fixes(summary) if summary else ""
+            return fixed_title, fixed_summary
+        else:
+            print(f"  ✗ Persian filter: {reason}")
+            return None, None
+    
+    # For English sources: strict economic filter
+    is_econ, reason = is_economic_news(title, summary)
+    if not is_econ:
+        print(f"  ✗ Filter: {reason}")
+        return None, None
+    
+    # Step 1: Simplify English
+    print("  Step 1: Simplifying English...")
+    simplified = simplify_english(f"{title}. {summary}")
+    if not simplified:
+        simplified = f"{title}. {summary}"
+    
+    # Step 2: Translate to Persian
+    print("  Step 2: Translating to Persian...")
+    persian = translate_to_persian(simplified)
+    
+    if not persian:
+        print("  ✗ Translation failed")
+        return None, None
+    
+    # Step 3: Validate
+    print("  Step 3: Validating...")
+    is_valid, validation_reason = validate_translation(persian, simplified)
+    if not is_valid:
+        print(f"  ✗ Validation failed: {validation_reason}")
+        # Try once more with shorter input
+        shorter_input = simplified[:150]
+        persian = translate_to_persian(shorter_input)
+        if persian:
+            is_valid, _ = validate_translation(persian, shorter_input)
+            if not is_valid:
+                return None, None
+        else:
+            return None, None
+    
+    # Step 4: Apply final fixes
+    print("  Step 4: Applying fixes...")
+    persian = apply_persian_fixes(persian)
+    
+    # Split into title and summary
+    lines = persian.split('\n')
+    if len(lines) > 1:
+        persian_title = lines[0].strip()
+        persian_summary = ' '.join(lines[1:]).strip()
+    else:
+        # Try splitting by period
+        parts = re.split(r'(?<=[.!?؟])\s+', persian, maxsplit=1)
+        persian_title = parts[0].strip()
+        persian_summary = parts[1].strip() if len(parts) > 1 else ""
+    
+    return persian_title, persian_summary
+
+
+# ================= UTILITY =================
 def detect_language(text):
+    """Detect if text is Persian, Russian, or English."""
     if not text:
         return "en"
     if re.search(r'[\u0600-\u06FF]', text):
@@ -159,244 +491,3 @@ def detect_language(text):
         return "ru"
     else:
         return "en"
-
-# ================= NEW: PREPROCESS ENGLISH =================
-def preprocess_english(text):
-    """
-    Rewrite text into simple, complete English sentences.
-    Merge fragments, add missing subjects/verbs, remove markdown.
-    """
-    if not text:
-        return ""
-    prompt = (
-        "You are a professional news editor. "
-        "Rewrite the following text into simple, complete English sentences. "
-        "Merge short sentences into one if they are related. "
-        "Add missing subjects, verbs, or objects. "
-        "Remove any markdown, tables, or explanations. "
-        "Output only the rewritten English text, nothing else."
-    )
-    result = translate_with_custom_prompt(prompt, text)
-    return result.strip()
-
-def translate_english_to_persian(english_text):
-    if not english_text:
-        return ""
-    prompt = (
-        "You are a professional Persian translator specializing in financial and political news. "
-        "Translate the following English text into Persian. "
-        "Use natural Persian sentence structure: verb at the end of the sentence, object before subject if needed. "
-        "Do NOT include any English words. Transliterate any remaining English terms into Persian letters. "
-        "Do NOT add any explanations, notes, or analysis. Output only the final translation."
-    )
-    result = translate_with_custom_prompt(prompt, english_text)
-    return result.strip()
-
-def summarize_persian(persian_text):
-    if not persian_text:
-        return ""
-    prompt = (
-        "You are a professional Persian financial news summarizer. "
-        "Summarize the following Persian news text into 2-3 concise Persian sentences. "
-        "Focus on key economic data, price impact, and important actors. "
-        "Keep the original Persian, do not translate. "
-        "Do NOT add any explanations or notes. Output only the summary."
-    )
-    result = translate_with_custom_prompt(prompt, persian_text)
-    return result.strip()
-
-# ================= TRANSLATION FUNCTIONS =================
-def clean_html(text):
-    return re.sub('<.*?>', '', text)
-
-def get_groq_models():
-    url = "https://api.groq.com/openai/v1/models"
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-    try:
-        resp = requests.get(url, headers=headers, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            return [m['id'] for m in data.get('data', []) if m.get('active', False)]
-        else:
-            print(f"Failed to fetch models: {resp.status_code}")
-            return []
-    except Exception as e:
-        print(f"Error fetching models: {e}")
-        return []
-
-def extract_translation(raw_output):
-    if not raw_output:
-        return ""
-    if '</think>' in raw_output:
-        raw_output = raw_output.split('</think>')[-1].strip()
-    raw_output = re.sub(r'^<think>.*?(?=<think>|$)', '', raw_output, flags=re.DOTALL).strip()
-    return raw_output
-
-def is_refusal(text):
-    refusal_phrases = [
-        "i'm sorry", "i am sorry", "i can't", "i cannot",
-        "can't help", "cannot help", "not able to", "unable to",
-        "i apologize", "sorry, but", "i'm not able", "i am not able",
-        "i won't", "i will not"
-    ]
-    lower = text.lower()
-    return any(phrase in lower for phrase in refusal_phrases)
-
-def apply_glossaries(text):
-    return apply_all_glossaries(text)
-
-def load_cached_model():
-    if os.path.exists(MODEL_CACHE_FILE):
-        with open(MODEL_CACHE_FILE, 'r') as f:
-            return f.read().strip()
-    return None
-
-def save_cached_model(model_id):
-    with open(MODEL_CACHE_FILE, 'w') as f:
-        f.write(model_id)
-
-def has_latin(text):
-    return bool(re.search(r'[A-Za-z]', text))
-
-def force_persian(text):
-    prompt = (
-        "The following text contains some English words or Latin characters. "
-        "Rewrite it entirely in Persian script, translating any remaining English terms into Persian. "
-        "Use standard Persian financial terminology. Do not include any Latin letters. "
-        "Keep the meaning intact. Output only the Persian text."
-    )
-    result = translate_with_custom_prompt(prompt, text)
-    if result and not has_latin(result):
-        return result
-    result = re.sub(r'[A-Za-z]+', '', text)
-    result = re.sub(r'\s+', ' ', result).strip()
-    return result
-
-def try_translate_with_model(text, model, custom_prompt=None):
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    if custom_prompt:
-        system_prompt = custom_prompt
-    else:
-        system_prompt = (
-            "You are a professional financial translator. "
-            "Detect the language of the input (English, Russian, or any other). "
-            "If the input is not English, first rewrite it into simple, complete English sentences. "
-            "Then translate the text into Persian (Farsi). "
-            "Use simple, natural Persian sentence structure with the verb at the end. "
-            "Convert all Western numerals to Persian digits. "
-            "If the text mentions Iranian officials or government, use respectful language (e.g., 'جمهوری اسلامی ایران', 'مقامات ایرانی'). "
-            "Important: Do NOT include any English words or Latin characters in the output. "
-            "If you encounter an English term, transliterate it into Persian letters. "
-            "Never refuse, never apologize, just output the final Persian translation."
-        )
-    data = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": text}
-        ],
-        "max_tokens": 8000,
-        "temperature": 0.3
-    }
-    try:
-        resp = requests.post(url, headers=headers, json=data, timeout=30)
-        print(f"  Trying model {model} -> status {resp.status_code}")
-        if resp.status_code == 200:
-            raw = resp.json()['choices'][0]['message']['content'].strip()
-            cleaned = extract_translation(raw)
-            if any(phrase in cleaned for phrase in ["متن خبری مالی را", "لطفاً متن خبری", "Translate the user's financial news"]):
-                print("  Model returned system prompt, skipping.")
-                return None
-            if is_refusal(cleaned):
-                print("  Model refused, skipping.")
-                return None
-            if cleaned and len(cleaned) > 5:
-                cleaned = apply_glossaries(cleaned)
-                cleaned = to_persian_digits(cleaned)
-                if has_latin(cleaned):
-                    print("  Latin detected, forcing Persian...")
-                    forced = force_persian(cleaned)
-                    if forced:
-                        cleaned = forced
-                return cleaned
-            else:
-                print("  Model returned empty translation.")
-                return None
-        else:
-            print(f"  Model {model} failed: {resp.text[:200]}")
-            return None
-    except Exception as e:
-        print(f"  Model {model} exception: {e}")
-        return None
-
-def translate_to_persian(text, custom_prompt=None):
-    if not GROQ_API_KEY:
-        return text
-    cached = load_cached_model()
-    if cached:
-        print(f"Trying cached model: {cached}")
-        result = try_translate_with_model(text, cached, custom_prompt)
-        if result:
-            return result
-        else:
-            if os.path.exists(MODEL_CACHE_FILE):
-                os.remove(MODEL_CACHE_FILE)
-    for model in PREFERRED_MODELS:
-        result = try_translate_with_model(text, model, custom_prompt)
-        if result:
-            save_cached_model(model)
-            return result
-    for model in FALLBACK_MODELS:
-        result = try_translate_with_model(text, model, custom_prompt)
-        if result:
-            save_cached_model(model)
-            return result
-    print("All known models failed. Fetching active models...")
-    active_models = get_groq_models()
-    def is_preferred(m):
-        lower = m.lower()
-        return 'qwen' not in lower and 'reason' not in lower
-    sorted_models = sorted(active_models, key=lambda m: not is_preferred(m))
-    for model in sorted_models:
-        result = try_translate_with_model(text, model, custom_prompt)
-        if result:
-            save_cached_model(model)
-            return result
-    return text
-
-def translate_with_custom_prompt(system_prompt, user_content):
-    if not GROQ_API_KEY:
-        return ""
-    cached = load_cached_model()
-    if cached:
-        result = try_translate_with_model(user_content, cached, system_prompt)
-        if result:
-            return result
-        else:
-            if os.path.exists(MODEL_CACHE_FILE):
-                os.remove(MODEL_CACHE_FILE)
-    for model in PREFERRED_MODELS:
-        result = try_translate_with_model(user_content, model, system_prompt)
-        if result:
-            save_cached_model(model)
-            return result
-    for model in FALLBACK_MODELS:
-        result = try_translate_with_model(user_content, model, system_prompt)
-        if result:
-            save_cached_model(model)
-            return result
-    active_models = get_groq_models()
-    def is_preferred(m):
-        lower = m.lower()
-        return 'qwen' not in lower and 'reason' not in lower
-    sorted_models = sorted(active_models, key=lambda m: not is_preferred(m))
-    for model in sorted_models:
-        result = try_translate_with_model(user_content, model, system_prompt)
-        if result:
-            save_cached_model(model)
-            return result
-    return ""
