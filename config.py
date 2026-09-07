@@ -454,4 +454,3 @@ BEARISH_OIL = [
     'inventory build', 'demand destruction', 'economic weakness',
     'higher interest rates', 'strong dollar', 'oil price drop',
 ]
-```
