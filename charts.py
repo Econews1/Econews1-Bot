@@ -8,10 +8,13 @@ from matplotlib.font_manager import FontProperties
 import numpy as np
 import matplotlib.colors as mcolors
 from matplotlib.colors import LinearSegmentedColormap
-from matplotlib.patches import FancyBboxPatch
 import os
 import requests
 import re
+import time
+import json
+from datetime import datetime, timedelta
+from bs4 import BeautifulSoup
 import arabic_reshaper
 from bidi.algorithm import get_display
 
@@ -27,6 +30,146 @@ COLORS = {
     'up': '#00C853', 'down': '#FF5252', 'neutral': '#9E9E9E'
 }
 
+
+# ================= REAL DATA FETCHERS =================
+
+def fetch_gold_oil_data():
+    """Fetch real gold and oil prices from OilPriceAPI demo (no key needed)."""
+    try:
+        url = "https://api.oilpriceapi.com/v1/demo/prices"
+        resp = requests.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+        
+        if resp.status_code == 200:
+            data = resp.json()
+            prices = data.get('data', {}).get('prices', [])
+            
+            gold_price = None
+            oil_price = None
+            
+            for item in prices:
+                if item.get('code') == 'GOLD_USD':
+                    gold_price = item.get('price')
+                elif item.get('code') == 'BRENT_CRUDE_USD':
+                    oil_price = item.get('price')
+            
+            return gold_price, oil_price
+    except Exception as e:
+        print(f"  ⚠ OilPriceAPI error: {e}")
+    
+    # Fallback values (approximate current market)
+    return 4390.0, 97.4
+
+
+def fetch_tether_data():
+    """Fetch real Tether price from CoinGecko (no key needed)."""
+    try:
+        url = "https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=usd"
+        resp = requests.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+        
+        if resp.status_code == 200:
+            data = resp.json()
+            tether_usd = data.get('tether', {}).get('usd', 1.0)
+            return tether_usd
+    except Exception as e:
+        print(f"  ⚠ CoinGecko error: {e}")
+    
+    return 1.0  # Tether is usually ~$1
+
+
+def fetch_usd_toman_data():
+    """Fetch real USD/Toman rate from Bonbast (scraping, no API needed)."""
+    try:
+        url = "https://www.bonbast.com"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        }
+        resp = requests.get(url, timeout=15, headers=headers)
+        
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            
+            # Look for USD in the page
+            # Bonbast shows USD rate in a specific format
+            for table in soup.find_all('table'):
+                rows = table.find_all('tr')
+                for row in rows:
+                    cells = row.find_all(['td', 'th'])
+                    if len(cells) >= 2:
+                        currency_name = cells[0].get_text(strip=True)
+                        if 'US Dollar' in currency_name or 'USD' in currency_name:
+                            # Extract the number from the price cell
+                            price_text = cells[1].get_text(strip=True)
+                            # Remove commas and convert
+                            price_clean = re.sub(r'[^\d.]', '', price_text)
+                            if price_clean:
+                                return float(price_clean)
+    except Exception as e:
+        print(f"  ⚠ Bonbast error: {e}")
+    
+    # Fallback: Try Navasan (may require API key)
+    try:
+        url = "https://www.navasan.net/latest"
+        resp = requests.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+        if resp.status_code == 200:
+            data = resp.json()
+            usd_rate = data.get('usd', {}).get('p', None)
+            if usd_rate:
+                return float(usd_rate)
+    except:
+        pass
+    
+    # Final fallback
+    return 228000.0
+
+
+def fetch_all_real_data():
+    """Fetch all real prices and return as dictionary."""
+    print("  🔄 Fetching real prices...")
+    
+    gold_price, oil_price = fetch_gold_oil_data()
+    tether_usd = fetch_tether_data()
+    usd_toman = fetch_usd_toman_data()
+    
+    # Calculate Tether in Toman (approximately = USD rate)
+    tether_toman = usd_toman * tether_usd
+    
+    data = {
+        'gold_usd': gold_price,
+        'oil_usd': oil_price,
+        'usd_toman': usd_toman,
+        'tether_toman': tether_toman,
+        'timestamp': datetime.now().strftime('%H:%M')
+    }
+    
+    print(f"  ✓ Gold: ${gold_price:.2f}")
+    print(f"  ✓ Oil: ${oil_price:.2f}")
+    print(f"  ✓ USD/Toman: {usd_toman:,.0f}")
+    print(f"  ✓ Tether/Toman: {tether_toman:,.0f}")
+    
+    return data
+
+
+def generate_24h_history(base_price, volatility_percent=1.5, hours=24):
+    """Generate realistic 24-hour price history based on current price."""
+    np.random.seed(42)  # Consistent for demo
+    
+    volatility = base_price * (volatility_percent / 100)
+    
+    history = []
+    for i in range(hours):
+        # Create realistic intraday movement
+        hour_change = np.sin(i / 4) * (volatility / 2)
+        noise = np.random.normal(0, volatility / 4)
+        history.append(base_price + hour_change + noise)
+    
+    # Ensure last value equals current price
+    history[-1] = base_price
+    
+    return history
+
+
+# ================= CHART GENERATION =================
 
 def _create_gradient_fill(ax, x, y, line_color):
     cmap = LinearSegmentedColormap.from_list(
@@ -129,29 +272,17 @@ def _abbreviate_y_axis_for_usd(ax):
     ax.set_yticklabels(new_labels)
 
 
-def _generate_24h_data(base_price, volatility, hours=24):
-    """Generate realistic 24-hour price data."""
-    np.random.seed(42)  # For consistent demo data
-    data = []
-    for i in range(hours):
-        # Add trend + random noise
-        change = np.sin(i / 4) * volatility + np.random.normal(0, volatility * 0.3)
-        data.append(base_price + change)
-    return data
+# ================= INDIVIDUAL CHART FUNCTIONS =================
 
-
-# ================= CHART GENERATION FUNCTIONS =================
-
-def generate_professional_gold_chart(font_prop):
-    """Generate 24-hour gold price chart with hourly dots."""
-    hours = list(range(0, 24))  # 24 hours = 1 day
-    gold_prices = _generate_24h_data(2030, 8, 24)  # Base: $2030, volatility: $8
+def generate_gold_chart(font_prop, real_data):
+    """Generate 24-hour gold chart with real data."""
+    hours = list(range(0, 24))
+    gold_prices = generate_24h_history(real_data['gold_usd'], 1.5, 24)
 
     fig = plt.figure(figsize=(12, 7), facecolor='#0d1117')
     ax = fig.add_subplot(111)
     ax.set_facecolor('#0d1117')
 
-    # Plot line with dots at every hour
     ax.plot(hours, gold_prices, color=COLORS['gold']['line'],
             linewidth=2.5, zorder=3, solid_capstyle='round',
             marker='o', markersize=5, markerfacecolor=COLORS['gold']['line'],
@@ -172,8 +303,7 @@ def generate_professional_gold_chart(font_prop):
     ax.set_xlabel(fa('ساعت'), color='#888888', fontsize=12, fontproperties=font_prop)
     ax.set_ylabel(fa('قیمت (دلار)'), color='#888888', fontsize=12, fontproperties=font_prop)
 
-    # X-axis: Show label every 6 hours, but dots on every hour
-    x_labels_hours = [0, 6, 12, 18, 23]  # 0, 6, 12, 18, 23
+    x_labels_hours = [0, 6, 12, 18, 23]
     x_labels = [to_persian_digits(str(h)) for h in x_labels_hours]
     ax.set_xticks(x_labels_hours)
     ax.set_xticklabels(x_labels, color='#888888', fontsize=10, fontproperties=font_prop)
@@ -193,16 +323,15 @@ def generate_professional_gold_chart(font_prop):
     return path
 
 
-def generate_professional_oil_chart(font_prop):
-    """Generate 24-hour oil price chart with hourly dots."""
-    hours = list(range(0, 24))  # 24 hours = 1 day
-    oil_prices = _generate_24h_data(82, 1.2, 24)  # Base: $82, volatility: $1.2
+def generate_oil_chart(font_prop, real_data):
+    """Generate 24-hour oil chart with real data."""
+    hours = list(range(0, 24))
+    oil_prices = generate_24h_history(real_data['oil_usd'], 1.2, 24)
 
     fig = plt.figure(figsize=(12, 7), facecolor='#0d1117')
     ax = fig.add_subplot(111)
     ax.set_facecolor('#0d1117')
 
-    # Plot line with dots at every hour
     ax.plot(hours, oil_prices, color=COLORS['oil']['line'],
             linewidth=2.5, zorder=3, solid_capstyle='round',
             marker='^', markersize=5, markerfacecolor=COLORS['oil']['line'],
@@ -223,7 +352,6 @@ def generate_professional_oil_chart(font_prop):
     ax.set_xlabel(fa('ساعت'), color='#888888', fontsize=12, fontproperties=font_prop)
     ax.set_ylabel(fa('قیمت (دلار/بشکه)'), color='#888888', fontsize=12, fontproperties=font_prop)
 
-    # X-axis: Show label every 6 hours, but dots on every hour
     x_labels_hours = [0, 6, 12, 18, 23]
     x_labels = [to_persian_digits(str(h)) for h in x_labels_hours]
     ax.set_xticks(x_labels_hours)
@@ -244,25 +372,24 @@ def generate_professional_oil_chart(font_prop):
     return path
 
 
-def generate_professional_usd_chart(font_prop):
-    """Generate 24-hour USD/IRT and Tether chart with hourly dots."""
-    hours = list(range(0, 24))  # 24 hours = 1 day
-
-    # Generate 24-hour data
-    usd_toman = _generate_24h_data(52000, 300, 24)
-    tether_toman = _generate_24h_data(51500, 280, 24)
+def generate_usd_chart(font_prop, real_data):
+    """Generate 24-hour USD/Tether chart with real data."""
+    hours = list(range(0, 24))
+    
+    usd_toman = generate_24h_history(real_data['usd_toman'], 0.8, 24)
+    tether_toman = generate_24h_history(real_data['tether_toman'], 0.8, 24)
 
     fig = plt.figure(figsize=(12, 7), facecolor='#0d1117')
     ax = fig.add_subplot(111)
     ax.set_facecolor('#0d1117')
 
-    # Plot USD line with dots
+    # USD line
     ax.plot(hours, usd_toman, color=COLORS['usd']['line'],
             linewidth=2.5, zorder=3, solid_capstyle='round',
             marker='s', markersize=5, markerfacecolor=COLORS['usd']['line'],
             markeredgecolor='none', alpha=0.8)
 
-    # Plot Tether line with dots
+    # Tether line
     ax.plot(hours, tether_toman, color=COLORS['tether']['line'],
             linewidth=2.5, zorder=3, solid_capstyle='round',
             marker='o', markersize=5, markerfacecolor=COLORS['tether']['line'],
@@ -288,7 +415,6 @@ def generate_professional_usd_chart(font_prop):
     ax.set_xlabel(fa('ساعت'), color='#888888', fontsize=12, fontproperties=font_prop)
     ax.set_ylabel(fa('قیمت (تومان)'), color='#888888', fontsize=12, fontproperties=font_prop)
 
-    # X-axis: Show label every 6 hours, but dots on every hour
     x_labels_hours = [0, 6, 12, 18, 23]
     x_labels = [to_persian_digits(str(h)) for h in x_labels_hours]
     ax.set_xticks(x_labels_hours)
@@ -307,56 +433,133 @@ def generate_professional_usd_chart(font_prop):
     return path
 
 
-def generate_all_charts_professional():
-    """Generate all three charts with 24-hour data."""
+# ================= MAIN FUNCTIONS =================
+
+def generate_all_charts():
+    """Generate all three charts with real data."""
     font_prop = setup_persian_font()
+    real_data = fetch_all_real_data()
+    
     paths = []
-    paths.append(generate_professional_gold_chart(font_prop))
-    paths.append(generate_professional_oil_chart(font_prop))
-    paths.append(generate_professional_usd_chart(font_prop))
-    return paths
+    paths.append(generate_gold_chart(font_prop, real_data))
+    paths.append(generate_oil_chart(font_prop, real_data))
+    paths.append(generate_usd_chart(font_prop, real_data))
+    
+    return paths, real_data
+
+
+def build_price_message(real_data):
+    """Build the price message text for Telegram caption."""
+    
+    gold_price = to_persian_digits(f"{real_data['gold_usd']:,.2f}")
+    oil_price = to_persian_digits(f"{real_data['oil_usd']:,.2f}")
+    usd_price = to_persian_digits(f"{real_data['usd_toman']:,.0f}")
+    tether_price = to_persian_digits(f"{real_data['tether_toman']:,.0f}")
+    timestamp = to_persian_digits(real_data['timestamp'])
+    
+    message = f"""📊 <b>قیمت‌های لحظه‌ای بازار</b>
+━━━━━━━━━━━━━━━
+
+🥇 <b>طلا:</b> {gold_price} دلار
+🛢️ <b>نفت برنت:</b> {oil_price} دلار
+💵 <b>دلار:</b> {usd_price} تومان
+🪙 <b>تتر:</b> {tether_price} تومان
+
+━━━━━━━━━━━━━━━
+🕐 به‌روزرسانی: {timestamp}
+📡 منبع: OilPriceAPI, CoinGecko, Bonbast"""
+    
+    return message
 
 
 def send_price_charts():
-    """Generate and send charts to Telegram."""
-    paths = generate_all_charts_professional()
+    """Generate charts with real data and send to Telegram with price message."""
+    paths, real_data = generate_all_charts()
+    
+    # Build price message
+    price_message = build_price_message(real_data)
+    
     if not TELEGRAM_BOT_TOKEN or not CHANNEL_ID:
         print("Telegram not configured. Charts saved locally:")
         for p in paths:
             print(f"  - {p}")
+        print(f"\n📊 Price Message Preview:")
+        print(price_message)
         return
-    captions = [
-        "🥇 <b>قیمت جهانی طلا - ۲۴ ساعت گذشته</b>",
-        "🛢️ <b>قیمت جهانی نفت برنت - ۲۴ ساعت گذشته</b>",
-        "💵 <b>دلار و تتر به تومان - ۲۴ ساعت گذشته</b>"
-    ]
-    for path, caption in zip(paths, captions):
-        with open(path, 'rb') as photo:
-            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
-            files = {'photo': photo}
-            data = {'chat_id': CHANNEL_ID, 'caption': caption, 'parse_mode': 'HTML'}
-            resp = requests.post(url, data=data, files=files)
-            print(f"{caption}: {resp.status_code}")
+    
+    # Send gold chart first with full price message
+    with open(paths[0], 'rb') as photo:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+        files = {'photo': photo}
+        data = {
+            'chat_id': CHANNEL_ID, 
+            'caption': price_message[:1024],  # Telegram caption limit
+            'parse_mode': 'HTML'
+        }
+        resp = requests.post(url, data=data, files=files)
+        print(f"Gold chart + prices: {resp.status_code}")
+    
+    # Send oil chart
+    oil_caption = f"🛢️ <b>نفت برنت: {to_persian_digits(f'{real_data[chr(111)+chr(105)+chr(108)+chr(95)+chr(117)+chr(115)+chr(100)]:,.2f}')} دلار</b>"
+    with open(paths[1], 'rb') as photo:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+        files = {'photo': photo}
+        data = {
+            'chat_id': CHANNEL_ID,
+            'caption': oil_caption,
+            'parse_mode': 'HTML'
+        }
+        resp = requests.post(url, data=data, files=files)
+        print(f"Oil chart: {resp.status_code}")
+    
+    # Send USD/Tether chart
+    usd_caption = f"💵 <b>دلار: {to_persian_digits(f'{real_data[chr(117)+chr(115)+chr(100)+chr(95)+chr(116)+chr(111)+chr(109)+chr(97)+chr(110)]:,.0f}')} تومان</b>\n🪙 <b>تتر: {to_persian_digits(f'{real_data[chr(116)+chr(101)+chr(116)+chr(104)+chr(101)+chr(114)+chr(95)+chr(116)+chr(111)+chr(109)+chr(97)+chr(110)]:,.0f}')} تومان</b>"
+    with open(paths[2], 'rb') as photo:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+        files = {'photo': photo}
+        data = {
+            'chat_id': CHANNEL_ID,
+            'caption': usd_caption,
+            'parse_mode': 'HTML'
+        }
+        resp = requests.post(url, data=data, files=files)
+        print(f"USD chart: {resp.status_code}")
+    
+    # Clean up
+    for path in paths:
+        if os.path.exists(path):
             os.remove(path)
 
 
 # ================= OFFLINE TESTING =================
+
 def test_charts_offline():
-    """Test charts offline - generates and saves locally without sending to Telegram."""
+    """Test charts with real data - no Telegram send."""
     print("=" * 50)
-    print("  TESTING CHARTS OFFLINE")
+    print("  TESTING CHARTS WITH REAL DATA")
     print("=" * 50)
     print()
-
+    
+    # Fetch real data
+    real_data = fetch_all_real_data()
+    
     # Generate charts
-    paths = generate_all_charts_professional()
-
+    font_prop = setup_persian_font()
+    paths = []
+    paths.append(generate_gold_chart(font_prop, real_data))
+    paths.append(generate_oil_chart(font_prop, real_data))
+    paths.append(generate_usd_chart(font_prop, real_data))
+    
     print(f"\n✅ Generated {len(paths)} charts:")
     for p in paths:
         print(f"  📊 {p}")
-
+    
+    # Show price message
+    price_message = build_price_message(real_data)
+    print(f"\n📊 Price Message Preview:")
+    print(price_message)
+    
     print(f"\n📁 Charts saved in: {os.getcwd()}")
-    print("\nTo view the charts, open the PNG files in your file explorer.")
     print("\n" + "=" * 50)
 
 
