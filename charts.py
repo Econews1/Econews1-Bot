@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 import arabic_reshaper
 from bidi.algorithm import get_display
-import yfinance as yf          # <-- new for historical data
+import yfinance as yf
 
 from config import *
 from translator import to_persian_digits, fa, setup_persian_font
@@ -45,20 +45,16 @@ def fetch_historical_gold_oil():
         gold = yf.download('GC=F', start=start, end=end, interval='1h', progress=False)
         oil = yf.download('BZ=F', start=start, end=end, interval='1h', progress=False)
         
-        # Extract close prices, resample to exactly 24 points (interpolate if needed)
         gold_hist = gold['Close'].values
         oil_hist = oil['Close'].values
         
-        if len(gold_hist) == 0:
-            raise ValueError("No gold data")
-        if len(oil_hist) == 0:
-            raise ValueError("No oil data")
+        if len(gold_hist) == 0 or len(oil_hist) == 0:
+            raise ValueError("No data from yfinance")
         
-        # If we have more than 24 points, take the most recent 24
+        # Ensure we have exactly 24 points. If more, take the last 24. If fewer, pad.
         gold_hist = gold_hist[-24:] if len(gold_hist) >= 24 else gold_hist
         oil_hist = oil_hist[-24:] if len(oil_hist) >= 24 else oil_hist
         
-        # If fewer than 24 points, pad with the last value (should not happen often)
         if len(gold_hist) < 24:
             gold_hist = np.pad(gold_hist, (24 - len(gold_hist), 0), mode='edge')
         if len(oil_hist) < 24:
@@ -101,9 +97,7 @@ def fetch_historical_usd_toman():
     We use the current rate from Bonbast and the previous day's close from exchangerate.host,
     then generate a realistic random walk between them.
     """
-    # Get current USD/Toman from Bonbast
     current = fetch_usd_toman_current()
-    # Get yesterday's close from exchangerate.host (free, no key)
     yesterday = datetime.now() - timedelta(days=1)
     date_str = yesterday.strftime('%Y-%m-%d')
     try:
@@ -114,14 +108,14 @@ def fetch_historical_usd_toman():
             prev_close = data.get('rates', {}).get('IRR')
             if prev_close:
                 prev_close = float(prev_close)
-                # Generate 24 hourly points from prev_close to current using a random walk
-                # with small steps to mimic intraday movement
-                np.random.seed(42)  # for reproducibility
+                # Generate realistic intraday path using a random walk with drift
+                np.random.seed(42)  # reproducible
                 diff = (current - prev_close) / 24
                 prices = [prev_close]
+                # Daily volatility for IRR/USD is about 0.5-1% per day
+                hourly_vol = current * 0.006 / np.sqrt(24)  # about 0.12% per hour
                 for i in range(1, 24):
-                    # Add a random component scaled to daily volatility (0.5% per hour)
-                    noise = np.random.normal(0, current * 0.005)
+                    noise = np.random.normal(0, hourly_vol)
                     prices.append(prices[-1] + diff + noise)
                 # Ensure last value equals current
                 prices[-1] = current
@@ -275,7 +269,7 @@ def _add_price_annotation(ax, x, y, price, color, font_prop, currency='$', label
         xytext=(15, 0),
         textcoords='offset points',
         color='white',
-        fontsize=13,          # increased from 11
+        fontsize=13,
         va='center',
         bbox=dict(boxstyle='round,pad=0.4', facecolor=color, alpha=0.85, edgecolor='none'),
         fontproperties=font_prop if font_prop else None,
@@ -299,7 +293,7 @@ def _add_change_badge(ax, y_data, font_prop):
         0.5, 0.92,
         change_text_fa,
         transform=ax.transAxes,
-        fontsize=15,          # increased from 13
+        fontsize=15,
         fontweight='bold',
         color=color,
         ha='center',
@@ -319,7 +313,7 @@ def _abbreviate_y_axis_for_usd(ax):
             label = to_persian_digits(str(int(tick)))
         new_labels.append(label)
     ax.set_yticks(y_ticks)
-    ax.set_yticklabels(new_labels, fontsize=12)   # increased
+    ax.set_yticklabels(new_labels, fontsize=12)
 
 
 def generate_gold_chart(font_prop, data):
@@ -327,7 +321,7 @@ def generate_gold_chart(font_prop, data):
     hours = list(range(0, 24))
     gold_prices = data['gold_hist']
 
-    fig = plt.figure(figsize=(10, 5.5), facecolor='#0d1117')  # smaller
+    fig = plt.figure(figsize=(10, 5.5), facecolor='#0d1117')
     ax = fig.add_subplot(111)
     ax.set_facecolor('#0d1117')
 
@@ -346,22 +340,22 @@ def generate_gold_chart(font_prop, data):
     _add_change_badge(ax, gold_prices, font_prop)
 
     title_text = fa('قیمت جهانی طلا')
-    ax.set_title(title_text, color='white', fontsize=20, fontweight='bold',   # increased
+    ax.set_title(title_text, color='white', fontsize=20, fontweight='bold',
                  fontproperties=font_prop, pad=20)
-    ax.set_xlabel(fa('ساعت'), color='#888888', fontsize=14, fontproperties=font_prop)  # increased
-    ax.set_ylabel(fa('قیمت (دلار)'), color='#888888', fontsize=14, fontproperties=font_prop)  # increased
+    ax.set_xlabel(fa('ساعت'), color='#888888', fontsize=14, fontproperties=font_prop)
+    ax.set_ylabel(fa('قیمت (دلار)'), color='#888888', fontsize=14, fontproperties=font_prop)
 
     x_labels_hours = [0, 6, 12, 18, 23]
     x_labels = [to_persian_digits(str(h)) for h in x_labels_hours]
     ax.set_xticks(x_labels_hours)
-    ax.set_xticklabels(x_labels, color='#888888', fontsize=12, fontproperties=font_prop)  # increased
+    ax.set_xticklabels(x_labels, color='#888888', fontsize=12, fontproperties=font_prop)
 
     y_padding = (max(gold_prices) - min(gold_prices)) * 0.15
     ax.set_ylim(min(gold_prices) - y_padding, max(gold_prices) + y_padding)
     y_ticks = ax.get_yticks()
     y_labels = [to_persian_digits(f"{tick:,.0f}") for tick in y_ticks]
     ax.set_yticks(y_ticks)
-    ax.set_yticklabels(y_labels, color='#888888', fontsize=12, fontproperties=font_prop)  # increased
+    ax.set_yticklabels(y_labels, color='#888888', fontsize=12, fontproperties=font_prop)
 
     plt.tight_layout()
     path = "gold_chart.png"
@@ -421,7 +415,7 @@ def generate_oil_chart(font_prop, data):
 
 
 def generate_usd_chart(font_prop, data):
-    """Generate 24-hour USD/Tether chart from historical data."""
+    """Generate 24-hour USD/Tether chart with non-overlapping labels at top-right."""
     hours = list(range(0, 24))
     usd_prices = data['usd_hist']
     tether_prices = data['tether_hist']
@@ -430,30 +424,61 @@ def generate_usd_chart(font_prop, data):
     ax = fig.add_subplot(111)
     ax.set_facecolor('#0d1117')
 
+    # Plot lines
     ax.plot(hours, usd_prices, color=COLORS['usd']['line'],
             linewidth=2.5, zorder=3, solid_capstyle='round',
             marker='s', markersize=5, markerfacecolor=COLORS['usd']['line'],
-            markeredgecolor='none', alpha=0.8)
+            markeredgecolor='none', alpha=0.8, label='USD')
 
     ax.plot(hours, tether_prices, color=COLORS['tether']['line'],
             linewidth=2.5, zorder=3, solid_capstyle='round',
             marker='o', markersize=5, markerfacecolor=COLORS['tether']['line'],
-            markeredgecolor='none', alpha=0.8)
+            markeredgecolor='none', alpha=0.8, label='Tether')
 
+    # Gradients
     _create_gradient_fill(ax, hours, usd_prices, COLORS['usd']['line'])
     _create_gradient_fill(ax, hours, tether_prices, COLORS['tether']['line'])
 
     _style_axis_professional(ax, font_prop)
 
-    _add_price_annotation(ax, hours, usd_prices, usd_prices[-1],
-                          COLORS['usd']['line'], font_prop,
-                          currency=' ت', label=fa('دلار'))
-    _add_price_annotation(ax, hours, tether_prices, tether_prices[-1],
-                          COLORS['tether']['line'], font_prop,
-                          currency=' ت', label=fa('تتر'))
+    # ---- Place price labels in top-right corner, USD above Tether ----
+    # Get the y-range of the whole data
+    all_prices = usd_prices + tether_prices
+    y_min, y_max = min(all_prices), max(all_prices)
+    y_padding = (y_max - y_min) * 0.15
+    y_plot_max = y_max + y_padding
 
+    # Coordinates for the top-right corner in data space
+    x_pos = max(hours)  # 23
+    y_pos_usd = y_plot_max * 0.95  # near top
+    y_pos_tether = y_plot_max * 0.83  # below USD
+
+    # Helper to add a colored box
+    def add_label_box(ax, x, y, price, color, label_text, currency=' ت'):
+        price_text = f"{price:,.0f}{currency}"
+        price_text_fa = to_persian_digits(price_text)
+        annotation_text = f"{label_text}\n{price_text_fa}"
+        ax.annotate(
+            annotation_text,
+            xy=(x, y),
+            xytext=(0, 0),
+            textcoords='offset points',
+            color='white',
+            fontsize=13,
+            va='center',
+            ha='center',
+            bbox=dict(boxstyle='round,pad=0.5', facecolor=color, alpha=0.9, edgecolor='none'),
+            fontproperties=font_prop if font_prop else None,
+            linespacing=1.5
+        )
+
+    add_label_box(ax, x_pos, y_pos_usd, usd_prices[-1], COLORS['usd']['line'], fa('دلار'))
+    add_label_box(ax, x_pos, y_pos_tether, tether_prices[-1], COLORS['tether']['line'], fa('تتر'))
+
+    # Add change badge (based on USD)
     _add_change_badge(ax, usd_prices, font_prop)
 
+    # Titles and labels
     title_text = fa('دلار و تتر به تومان')
     ax.set_title(title_text, color='white', fontsize=20, fontweight='bold',
                  fontproperties=font_prop, pad=20)
@@ -465,9 +490,7 @@ def generate_usd_chart(font_prop, data):
     ax.set_xticks(x_labels_hours)
     ax.set_xticklabels(x_labels, color='#888888', fontsize=12, fontproperties=font_prop)
 
-    y_padding = (max(usd_prices + tether_prices) - min(usd_prices + tether_prices)) * 0.15
-    ax.set_ylim(min(usd_prices + tether_prices) - y_padding,
-                max(usd_prices + tether_prices) + y_padding)
+    ax.set_ylim(y_min - y_padding, y_max + y_padding)
     _abbreviate_y_axis_for_usd(ax)
 
     plt.tight_layout()
