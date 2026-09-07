@@ -48,12 +48,13 @@ RSS_FEEDS = [
     "https://feeds.feedburner.com/zerohedge/feed",
     "https://news.google.com/rss/search?q=gold+OR+oil+OR+dollar+when:1d&hl=en-US&gl=US&ceid=US:en",
 
-    # Persian sources
+    # Persian sources (economy-focused)
     "https://www.fardayeeghtesad.com/rss",
-    "https://www.eghtesadonline.com/fa/updates/13",
-    "https://www.eghtesadonline.com/fa/updates/27",
-    "https://www.eghtesadonline.com/fa/updates/8",
-    "https://www.mehrnews.com/rss",
+    "https://www.eghtesadonline.com/fa/updates/13",   # gold & currency
+    "https://www.eghtesadonline.com/fa/updates/27",   # oil & energy
+    "https://www.eghtesadonline.com/fa/updates/8",    # macro
+    # Removed Mehrnews due to non-economic content
+    # Add more if available
 ]
 
 POST_INTERVAL = 360          # 6 minutes
@@ -113,7 +114,9 @@ NEGATIVE_KEYWORDS_FA = [
     'فیلم', 'سینما', 'ورزش', 'بازی', 'دانش‌آموز', 'لوازم‌التحریر', 'همدان',
     'آمازون', 'هواپیما', 'بویینگ', 'سقوط', 'آتش‌سوزی', 'زلزله', 'سیل',
     'پلیس', 'جنایی', 'قتل', 'تصادف', 'خیریه', 'جشنواره', 'موسیقی',
-    'تئاتر', 'نمایشگاه', 'کتاب', 'مدرسه', 'دانشگاه'
+    'تئاتر', 'نمایشگاه', 'کتاب', 'مدرسه', 'دانشگاه', 'هنرمند', 'فرهنگی',
+    'چهره ماندگار', 'ادبیات', 'فیلم', 'سریال', 'کنسرت', 'ورزشگاه',
+    'تیم ملی', 'جام جهانی', 'المپیک', 'بازیگر', 'کارگردان', 'خواننده'
 ]
 
 IMPORTANT_COUNTRIES = [
@@ -143,7 +146,56 @@ OIL_BEARISH = [
     'lower oil demand', 'ev sales', 'alternative energy'
 ]
 
+# ================= GEOGRAPHIC NAMES =================
+GEO_NAMES = {
+    'United States': 'ایالات متحده', 'USA': 'ایالات متحده', 'US': 'ایالات متحده',
+    'America': 'آمریکا', 'China': 'چین', 'Japan': 'ژاپن', 'Germany': 'آلمان',
+    'France': 'فرانسه', 'United Kingdom': 'بریتانیا', 'UK': 'بریتانیا',
+    'Britain': 'بریتانیا', 'Italy': 'ایتالیا', 'Canada': 'کانادا',
+    'Australia': 'استرالیا', 'South Korea': 'کره جنوبی', 'Russia': 'روسیه',
+    'India': 'هند', 'Brazil': 'برزیل', 'Mexico': 'مکزیک', 'Indonesia': 'اندونزی',
+    'Turkey': 'ترکیه', 'Saudi Arabia': 'عربستان سعودی', 'UAE': 'امارات متحده عربی',
+    'Iran': 'ایران', 'Israel': 'اسرائیل', 'South Africa': 'آفریقای جنوبی',
+    'Europe': 'اروپا', 'Eurozone': 'منطقه یورو', 'European Union': 'اتحادیه اروپا',
+    'Saxony-Anhalt': 'زاکسن-آنهالت', 'Saxony': 'زاکسن', 'Anhalt': 'آنهالت',
+    'Deauville': 'دوویل', 'Deauville Film Festival': 'جشنواره فیلم دوویل',
+    'Kyiv': 'کی‌یف', 'Kiev': 'کی‌یف', 'Moscow': 'مسکو', 'Washington': 'واشنگتن',
+    'London': 'لندن', 'Paris': 'پاریس', 'Berlin': 'برلین', 'Beijing': 'پکن',
+    'Tokyo': 'توکیو', 'Brussels': 'بروکسل', 'Ankara': 'آنکارا', 'Riyadh': 'ریاض',
+    'Tehran': 'تهران', 'Baghdad': 'بغداد', 'Damascus': 'دمشق', 'Beirut': 'بیروت',
+    'Jerusalem': 'اورشلیم', 'Amman': 'امان', 'Cairo': 'قاهره', 'Doha': 'دوحه',
+    'Abu Dhabi': 'ابوظبی', 'Dubai': 'دبی', 'Manama': 'منامه', 'Muscat': 'مسقط',
+    'Kuwait City': 'کویت', 'Sanaa': 'صنعا', 'Khartoum': 'خارطوم', 'Tripoli': 'طرابلس',
+    'Algiers': 'الجزیره', 'Tunis': 'تونس', 'Rabat': 'رباط', 'Casablanca': 'کازابلانکا',
+    'Ottawa': 'اتاوا', 'Washington D.C.': 'واشنگتن دی‌سی', 'New York': 'نیویورک',
+    'Los Angeles': 'لس آنجلس', 'Chicago': 'شیکاگو', 'Houston': 'هیوستون',
+    'San Francisco': 'سانفرانسیسکو', 'Seattle': 'سیاتل', 'Miami': 'میامی',
+    'Toronto': 'تورنتو', 'Vancouver': 'ونکوور', 'Montreal': 'مونترال',
+    'Sydney': 'سیدنی', 'Melbourne': 'ملبورن', 'Perth': 'پرت', 'Auckland': 'اوکلند',
+    'Wellington': 'ولینگتون', 'Seoul': 'سئول', 'Busan': 'بوسان', 'Pyongyang': 'پیونگ‌یانگ',
+    'Hanoi': 'هانوی', 'Ho Chi Minh City': 'هوشی‌مین', 'Bangkok': 'بانکوک',
+    'Jakarta': 'جاکارتا', 'Manila': 'مانیل', 'Kuala Lumpur': 'کوالالامپور',
+    'Singapore': 'سنگاپور', 'New Delhi': 'دهلی نو', 'Mumbai': 'بمبئی',
+    'Islamabad': 'اسلام‌آباد', 'Kabul': 'کابل', 'Tashkent': 'تاشکند',
+    'Astana': 'آستانه', 'Baku': 'باکو', 'Yerevan': 'ایروان', 'Tbilisi': 'تفلیس',
+    'Ankara': 'آنکارا', 'Istanbul': 'استانبول', 'Athens': 'آتن', 'Rome': 'رم',
+    'Madrid': 'مادرید', 'Lisbon': 'لیسبون', 'Vienna': 'وین', 'Prague': 'پراگ',
+    'Warsaw': 'ورشو', 'Budapest': 'بوداپست', 'Bucharest': 'بخارست', 'Sofia': 'صوفیه',
+    'Belgrade': 'بلگراد', 'Zagreb': 'زاگرب', 'Ljubljana': 'لیوبلیانا',
+    'Sarajevo': 'سارایوو', 'Skopje': 'اسکوپیه', 'Tirana': 'تیرانا',
+    'Pristina': 'پریشتینا', 'Podgorica': 'پودگوریتسا', 'Riga': 'ریگا',
+    'Vilnius': 'ویلنیوس', 'Tallinn': 'تالین', 'Helsinki': 'هلسینکی',
+    'Oslo': 'اسلو', 'Stockholm': 'استکهلم', 'Copenhagen': 'کپنهاگ',
+    'Reykjavik': 'ریکیاویک', 'Dublin': 'دوبلین', 'Edinburgh': 'ادینبورگ',
+    'Cardiff': 'کاردیف', 'Belfast': 'بلفاست', 'Amsterdam': 'آمستردام',
+    'Rotterdam': 'روتردام', 'Geneva': 'ژنو', 'Zurich': 'زوریخ',
+    'Brussels': 'بروکسل', 'Luxembourg': 'لوکزامبورگ', 'Monaco': 'موناکو',
+    'Andorra': 'آندورا', 'Liechtenstein': 'لیختن‌اشتاین', 'San Marino': 'سن مارینو',
+    'Vatican': 'واتیکان', 'Malta': 'مالت', 'Cyprus': 'قبرس',
+}
+
 # ================= GLOSSARIES =================
+# (Economical glossary, Iran respect, etc. remain as before – copied here for completeness)
 ECONOMIC_GLOSSARY = {
     'Gold': 'طلا', 'Spot Gold': 'طلا نقدی', 'Gold Bar': 'شمش طلا',
     'Gold Bullion': 'طلای آبشده', 'Gold Coin': 'سکه طلا',
