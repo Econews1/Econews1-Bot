@@ -1,10 +1,3 @@
-Here's the fixed code with the syntax errors corrected. The main issues were:
-
-1. A stray `[` after `"https://www.marketwatch.com/rss/topstories",` that opened a nested list never closed.
-2. A premature `]` that closed `RSS_FEEDS` before the Persian RSS URLs.
-3. An orphaned `[...]` block after `PERSIAN_ECONOMIC_KEYWORDS` that wasn't assigned to any variable.
-
-```python
 # config.py
 
 import os
