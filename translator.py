@@ -216,11 +216,11 @@ def is_persian_source(url):
 
 # ================= GROQ API =================
 def call_groq(system_prompt, user_text, max_tokens=400, temperature=0.1):
-    """Call Groq API with strict prompting."""
+    """Call Groq API with strict prompting and improved error handling."""
     if not GROQ_API_KEY:
         return ""
     
-    # Try primary model first
+    # Models to try: primary then fallbacks
     models_to_try = [TRANSLATION_MODEL] + FALLBACK_MODELS
     
     for model in models_to_try:
@@ -241,25 +241,63 @@ def call_groq(system_prompt, user_text, max_tokens=400, temperature=0.1):
             "top_p": 0.9
         }
         
-        try:
-            resp = requests.post(url, headers=headers, json=data, timeout=30)
-            if resp.status_code == 200:
-                result = resp.json()['choices'][0]['message']['content'].strip()
-                # Remove think tags
-                result = re.sub(r'<\/?think>', '', result)
-                # Remove markdown
-                result = clean_text(result)
-                if result and len(result) > 10:
-                    return result
-            elif resp.status_code == 429:
-                # Rate limited, wait and retry
-                print(f"  Rate limited, waiting...")
-                time.sleep(5)
+        # Retry up to 2 times for transient errors
+        for attempt in range(3):
+            try:
+                resp = requests.post(url, headers=headers, json=data, timeout=45)
+                
+                if resp.status_code == 200:
+                    try:
+                        result = resp.json()['choices'][0]['message']['content'].strip()
+                    except (KeyError, IndexError, json.JSONDecodeError) as e:
+                        print(f"  ⚠ Unexpected API response format: {e}")
+                        break  # move to next model
+                    
+                    # Clean up thinking tags and markdown
+                    result = re.sub(r'<\/?think>', '', result)
+                    result = clean_text(result)
+                    
+                    if result and len(result) > 10:
+                        return result
+                    else:
+                        print(f"  ⚠ Model {model} returned empty or too short result")
+                        break  # try next model
+                
+                elif resp.status_code == 429:
+                    # Rate limit – wait and retry with same model
+                    wait = 5 * (attempt + 1)
+                    print(f"  ⚠ Rate limited (429) on {model}, waiting {wait}s...")
+                    time.sleep(wait)
+                    continue
+                
+                elif resp.status_code >= 500:
+                    # Server error – retry after short delay
+                    print(f"  ⚠ Server error {resp.status_code} on {model}, retrying...")
+                    time.sleep(2)
+                    continue
+                
+                else:
+                    # Client error (4xx) – log and move to next model
+                    print(f"  ❌ Groq API error {resp.status_code} on {model}: {resp.text[:200]}")
+                    break  # don't retry; move to next model
+                    
+            except requests.exceptions.Timeout:
+                print(f"  ⏱️ Timeout on {model} (attempt {attempt+1})")
+                time.sleep(2)
                 continue
-        except Exception as e:
-            print(f"  Groq error with {model}: {e}")
+            except Exception as e:
+                print(f"  ❌ Exception on {model}: {e}")
+                break  # move to next model
+        
+        else:
+            # If we exhausted retries for this model without success, try next
             continue
+        # If we get here, either we succeeded (returned) or broke due to fatal error
+        # If we broke due to a fatal error, we continue to next model
+        # The 'continue' after break will handle it.
+        # But to be safe, we'll just let the loop continue.
     
+    print(f"  ❌ All Groq models failed.")
     return ""
 
 
