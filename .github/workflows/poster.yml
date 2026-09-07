@@ -25,7 +25,6 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
         run: |
-          # Pull latest changes before the script to avoid conflicts
           git pull --rebase origin main
           python bot.py post
 
@@ -33,9 +32,8 @@ jobs:
         run: |
           git config --local user.email "bot@users.noreply.github.com"
           git config --local user.name "News Bot"
-          for f in queue.json processed_ids.json last_working_model.txt posted_titles.json; do
+          for f in queue.json processed_ids.json last_working_model.txt posted_titles.json price_history.json; do
             [ -f "$f" ] && git add "$f"
           done
           git diff --cached --quiet || git commit -m "Update bot state"
-          # Push directly – no extra pull needed because we already have latest
           git push origin main
