@@ -5,3 +5,4 @@ arabic-reshaper
 python-bidi
 numpy
 beautifulsoup4
+yfinance
