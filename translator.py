@@ -93,29 +93,65 @@ def fuzzy_correct_text(text, candidates, cutoff=0.85):
             corrected_tokens.append(token)
     return ' '.join(corrected_tokens)
 
+# ================= CLEANING =================
+def remove_markdown(text):
+    """Remove markdown symbols and table structures."""
+    # Remove lines with headings
+    text = re.sub(r'^#+\s*', '', text, flags=re.MULTILINE)
+    # Remove table rows
+    text = re.sub(r'\|.*?\|', '', text)
+    # Remove emphasis markers
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    text = re.sub(r'\*(.*?)\*', r'\1', text)
+    # Remove bullet points
+    text = re.sub(r'^\s*[-*]\s+', '', text, flags=re.MULTILINE)
+    return text.strip()
+
 # ================= TRANSLATION IMPROVEMENTS =================
 def apply_all_glossaries(text):
-    # Exact replacements
+    # First, remove markdown
+    text = remove_markdown(text)
+
+    # Apply corrections in a specific order to avoid duplication
     for wrong, right in PERSIAN_CORRECTIONS.items():
         text = text.replace(wrong, right)
+
+    # Iran respect glossary (English terms)
     for eng, fa_text in IRAN_RESPECT_GLOSSARY.items():
         text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
+
+    # Economic glossary
     for eng, fa_text in ECONOMIC_GLOSSARY.items():
         text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
+
+    # Iran specific glossary: use regex with negative lookbehind to avoid double prefixes
     for eng, fa_text in IRAN_SPECIFIC_GLOSSARY.items():
-        text = text.replace(eng, fa_text)
+        # Only replace if not already preceded by "نیروهای " or similar
+        pattern = r'(?<!نیروهای\s)' + re.escape(eng)
+        text = re.sub(pattern, fa_text, text)
+
+    # Country glossaries
     for country_dict in COUNTRY_GLOSSARY.values():
         for eng, fa_text in country_dict.items():
             text = re.sub(r'\b' + re.escape(eng) + r'\b', fa_text, text)
+
+    # Persian name corrections
     for wrong, right in PERSIAN_NAME_CORRECTIONS.items():
         text = text.replace(wrong, right)
+
+    # Proper noun corrections
     for wrong, right in PROPER_NOUN_CORRECTIONS.items():
         text = text.replace(wrong, right)
 
     # Fuzzy correction for proper nouns
     text = fuzzy_correct_text(text, CORRECT_TERMS, cutoff=0.85)
 
-    return text
+    # Clean duplicate phrases like "نیروهای نیروهای"
+    text = re.sub(r'\b(نیروهای\s){2,}', 'نیروهای ', text)
+    text = re.sub(r'\b(شورای اسلامی\s){2,}', 'شورای اسلامی ', text)
+    text = re.sub(r'\b(رهبر معظم\s){2,}', 'رهبر معظم ', text)
+
+    return text.strip()
 
 def detect_language(text):
     if not text:
@@ -134,11 +170,12 @@ def simplify_to_english(text):
         "You are a professional news editor. "
         "Rewrite the following text into simple, complete English sentences. "
         "Use short sentences with clear subject-verb-object order. "
-        "Avoid complex clauses. "
+        "Avoid complex clauses. Remove any markdown, tables, or explanations. "
         "If the text is not English, first translate it into simple English. "
         "Output only the simplified English, nothing else."
     )
-    return translate_with_custom_prompt(prompt, text)
+    result = translate_with_custom_prompt(prompt, text)
+    return result.strip()
 
 def translate_english_to_persian(english_text):
     if not english_text:
@@ -148,9 +185,10 @@ def translate_english_to_persian(english_text):
         "Translate the following English text into Persian. "
         "Use natural Persian sentence structure: verb at the end of the sentence, object before subject if needed. "
         "Do NOT include any English words. Transliterate any remaining English terms into Persian letters. "
-        "Output only the Persian translation, nothing else."
+        "Do NOT add any explanations, notes, or analysis. Output only the final translation."
     )
-    return translate_with_custom_prompt(prompt, english_text)
+    result = translate_with_custom_prompt(prompt, english_text)
+    return result.strip()
 
 def summarize_persian(persian_text):
     if not persian_text:
@@ -160,9 +198,10 @@ def summarize_persian(persian_text):
         "Summarize the following Persian news text into 2-3 concise Persian sentences. "
         "Focus on key economic data, price impact, and important actors. "
         "Keep the original Persian, do not translate. "
-        "Output only the summary, nothing else."
+        "Do NOT add any explanations or notes. Output only the summary."
     )
-    return translate_with_custom_prompt(prompt, persian_text)
+    result = translate_with_custom_prompt(prompt, persian_text)
+    return result.strip()
 
 # ================= TRANSLATION FUNCTIONS =================
 def clean_html(text):
