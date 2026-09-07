@@ -2,6 +2,8 @@
 
 import re
 import requests
+import json
+import time
 import os
 import difflib
 import arabic_reshaper
@@ -215,13 +217,42 @@ def is_persian_source(url):
 
 
 # ================= GROQ API =================
+
+def get_available_models():
+    """Fetch available models from Groq API dynamically."""
+    try:
+        url = "https://api.groq.com/openai/v1/models"
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code == 200:
+            models = resp.json().get('data', [])
+            available = [m['id'] for m in models]
+            # Prioritize best models
+            preferred = ['llama-3.1-70b-versatile', 'mixtral-8x7b-32768', 
+                        'gemma2-9b-it', 'llama-3.1-8b-instant']
+            result = []
+            for p in preferred:
+                if p in available:
+                    result.append(p)
+            # Add remaining available models
+            for m in available:
+                if m not in result:
+                    result.append(m)
+            return result
+    except Exception as e:
+        print(f"  ⚠ Model discovery failed: {e}")
+    return []
+
+
 def call_groq(system_prompt, user_text, max_tokens=400, temperature=0.1):
-    """Call Groq API with strict prompting and improved error handling."""
+    """Call Groq API with dynamic model discovery."""
     if not GROQ_API_KEY:
         return ""
     
-    # Models to try: primary then fallbacks
-    models_to_try = [TRANSLATION_MODEL] + FALLBACK_MODELS
+    # Try discovered models first, fallback to config
+    models_to_try = get_available_models()
+    if not models_to_try:
+        models_to_try = [TRANSLATION_MODEL] + FALLBACK_MODELS
     
     for model in models_to_try:
         url = "https://api.groq.com/openai/v1/chat/completions"
@@ -241,7 +272,6 @@ def call_groq(system_prompt, user_text, max_tokens=400, temperature=0.1):
             "top_p": 0.9
         }
         
-        # Retry up to 2 times for transient errors
         for attempt in range(3):
             try:
                 resp = requests.post(url, headers=headers, json=data, timeout=45)
@@ -251,9 +281,8 @@ def call_groq(system_prompt, user_text, max_tokens=400, temperature=0.1):
                         result = resp.json()['choices'][0]['message']['content'].strip()
                     except (KeyError, IndexError, json.JSONDecodeError) as e:
                         print(f"  ⚠ Unexpected API response format: {e}")
-                        break  # move to next model
+                        break
                     
-                    # Clean up thinking tags and markdown
                     result = re.sub(r'<\/?think>', '', result)
                     result = clean_text(result)
                     
@@ -261,25 +290,28 @@ def call_groq(system_prompt, user_text, max_tokens=400, temperature=0.1):
                         return result
                     else:
                         print(f"  ⚠ Model {model} returned empty or too short result")
-                        break  # try next model
+                        break
                 
                 elif resp.status_code == 429:
-                    # Rate limit – wait and retry with same model
                     wait = 5 * (attempt + 1)
-                    print(f"  ⚠ Rate limited (429) on {model}, waiting {wait}s...")
+                    print(f"  ⚠ Rate limited on {model}, waiting {wait}s...")
                     time.sleep(wait)
                     continue
                 
                 elif resp.status_code >= 500:
-                    # Server error – retry after short delay
                     print(f"  ⚠ Server error {resp.status_code} on {model}, retrying...")
                     time.sleep(2)
                     continue
                 
                 else:
-                    # Client error (4xx) – log and move to next model
-                    print(f"  ❌ Groq API error {resp.status_code} on {model}: {resp.text[:200]}")
-                    break  # don't retry; move to next model
+                    print(f"  ❌ Groq API error {resp.status_code} on {model}")
+                    if resp.text:
+                        try:
+                            error_json = json.loads(resp.text)
+                            print(f"     {error_json.get('error', {}).get('message', resp.text[:100])}")
+                        except:
+                            print(f"     {resp.text[:100]}")
+                    break
                     
             except requests.exceptions.Timeout:
                 print(f"  ⏱️ Timeout on {model} (attempt {attempt+1})")
@@ -287,17 +319,12 @@ def call_groq(system_prompt, user_text, max_tokens=400, temperature=0.1):
                 continue
             except Exception as e:
                 print(f"  ❌ Exception on {model}: {e}")
-                break  # move to next model
+                break
         
         else:
-            # If we exhausted retries for this model without success, try next
             continue
-        # If we get here, either we succeeded (returned) or broke due to fatal error
-        # If we broke due to a fatal error, we continue to next model
-        # The 'continue' after break will handle it.
-        # But to be safe, we'll just let the loop continue.
     
-    print(f"  ❌ All Groq models failed.")
+    print(f"  ❌ All models failed.")
     return ""
 
 
