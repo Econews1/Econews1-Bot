@@ -11,10 +11,6 @@ from config import *
 from translator import *
 from charts import send_price_charts
 
-# ================= PERSIAN FONT SETUP (moved to translator, but re-export here if needed) =================
-# For backward compatibility, if any code in bot.py uses setup_persian_font, import it:
-from translator import setup_persian_font, to_persian_digits, fa
-
 # ================= SENTIMENT =================
 def score_sentiment(text):
     text_lower = text.lower()
@@ -133,6 +129,10 @@ def format_message(article):
 
     persian_title = apply_all_glossaries(persian_title)
     persian_summary = apply_all_glossaries(persian_summary)
+
+    # Remove duplicated words after glossary
+    persian_title = re.sub(r'\b(نیروهای\s){2,}', 'نیروهای ', persian_title)
+    persian_summary = re.sub(r'\b(نیروهای\s){2,}', 'نیروهای ', persian_summary)
 
     if persian_summary and title_en:
         t1 = re.sub(r'[^\w\s]', '', persian_title)
@@ -302,21 +302,27 @@ def collect_news():
     for art in all_articles:
         if art['id'] in processed:
             continue
+
         text = (art['title'] + ' ' + art['summary']).lower()
         lang = detect_language(art['title'] + ' ' + art['summary'])
 
+        # Negative filter first
         if lang == 'fa':
+            if any(kw in text for kw in NEGATIVE_KEYWORDS_FA):
+                continue
             if not any(kw in text for kw in PERSIAN_KEYWORDS):
                 continue
         else:
+            if any(kw in text for kw in NEGATIVE_KEYWORDS_EN):
+                continue
             has_core = any(term in text for term in CORE_PRICE_TERMS)
             gold_score = score_sentiment(text)
             oil_score = score_oil_sentiment(text) if any(kw in text for kw in ['oil', 'crude', 'brent', 'wti', 'opec', 'petroleum', 'energy']) else 0
             if not (has_core or abs(gold_score) >= 1 or abs(oil_score) >= 1):
                 continue
 
+        # Duplicate title check against previously posted
         if any(titles_are_similar(art['title'], t) for t in posted_titles):
-            print(f"Skipping duplicate: {art['title']}")
             continue
 
         relevant.append(art)
@@ -324,11 +330,13 @@ def collect_news():
     relevant_sorted = sorted(relevant, key=priority_score, reverse=True)
     new_articles = relevant_sorted[:MAX_POSTS_PER_RUN]
 
+    added_titles = set()
     for art in new_articles:
-        if art not in queue:
+        if art not in queue and art['title'] not in added_titles:
             queue.append(art)
             processed.add(art['id'])
             posted_titles.append(art['title'])
+            added_titles.add(art['title'])
 
     posted_titles = posted_titles[-200:]
 
