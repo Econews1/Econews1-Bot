@@ -68,5 +68,12 @@
     "oil_usd": 96.28,
     "usd_toman": 228000.0,
     "tether_toman": 228000.0
+  },
+  {
+    "timestamp": "2026-09-07T21:15:04.018622",
+    "gold_usd": 4405.08,
+    "oil_usd": 96.28,
+    "usd_toman": 228000.0,
+    "tether_toman": 228000.0
   }
 ]
