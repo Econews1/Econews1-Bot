@@ -2,7 +2,12 @@
 
 import os
 
-# ================= CONFIGURATION =================
+# ================= API CONFIGURATION =================
+OILPRICEAPI_URL = "https://api.oilpriceapi.com/v1/demo/prices"
+COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price"
+BONBAST_URL = "https://www.bonbast.com"
+
+# ================= RSS FEEDS =================
 RSS_FEEDS = [
     # Core financial
     "https://www.actionforex.com/feed",
@@ -36,7 +41,6 @@ RSS_FEEDS = [
 ]
 
 # ================= PROHIBITED SOURCES =================
-# These sources are NEVER allowed
 PROHIBITED_SOURCES = [
     'bbc.com/persian',
     'bbc.co.uk/persian',
@@ -51,7 +55,6 @@ PROHIBITED_SOURCES = [
 ]
 
 # ================= PERSIAN SOURCE DOMAINS =================
-# These sources already output Persian - skip translation
 PERSIAN_SOURCE_DOMAINS = [
     'fardayeeghtesad.com',
     'eghtesadonline.com',
@@ -67,6 +70,7 @@ PERSIAN_SOURCE_DOMAINS = [
     'presstv.ir',
 ]
 
+# ================= BOT SETTINGS =================
 POST_INTERVAL = 360          # 6 minutes between posts
 MAX_POSTS_PER_RUN = 3        # Quality over quantity
 MAX_RUNTIME = 20 * 60        # 20 minutes max per run
@@ -75,14 +79,13 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
 
-# Only use the best model
+# Translation model
 TRANSLATION_MODEL = "openai/gpt-oss-20b"
 FALLBACK_MODELS = ["llama-3.1-8b-instant", "qwen/qwen3-32b"]
 
 MODEL_CACHE_FILE = "last_working_model.txt"
 
 # ================= STRICT ECONOMIC FILTER =================
-# These MUST be present for news to pass
 REQUIRED_ECONOMIC_TERMS = [
     # Central banks & monetary policy
     'fed', 'fomc', 'ecb', 'boj', 'boe', 'central bank',
@@ -118,7 +121,7 @@ REQUIRED_ECONOMIC_TERMS = [
     'financial crisis', 'economic crisis',
 ]
 
-# These BLOCK news from passing
+# Terms that BLOCK news
 BLOCKED_TERMS = [
     # Entertainment & culture
     'film', 'movie', 'festival', 'cinema', 'actor', 'actress',
@@ -162,7 +165,7 @@ BLOCKED_TERMS = [
     'هنر', 'موزه', 'گالری', 'نمایشگاه',
 ]
 
-# Persian keywords for economic content (for Persian sources)
+# Persian keywords for economic content
 PERSIAN_ECONOMIC_KEYWORDS = [
     'طلا', 'دلار', 'نفت', 'ارز', 'سکه', 'بورس', 'سهام', 'تورم',
     'بانک مرکزی', 'نرخ بهره', 'تحریم', 'قیمت', 'اقتصاد', 'بازار',
@@ -173,7 +176,7 @@ PERSIAN_ECONOMIC_KEYWORDS = [
     'سیاست پولی', 'سیاست مالی', 'کسری بودجه', 'بدهی',
 ]
 
-# Geographic names dictionary
+# ================= GEOGRAPHIC NAMES =================
 GEO_NAMES = {
     # Countries
     'United States': 'ایالات متحده', 'USA': 'ایالات متحده', 'US': 'ایالات متحده',
@@ -249,7 +252,7 @@ GEO_NAMES = {
     'UN Security Council': 'شورای امنیت سازمان ملل',
     'WTO': 'سازمان تجارت جهانی',
     
-    # People (correct Persian transliterations)
+    # People
     'Zelensky': 'زلنسکی', 'Zelenskyy': 'زلنسکی', 'Putin': 'پوتین',
     'Biden': 'بایدن', 'Trump': 'ترامپ', 'Macron': 'ماکرون',
     'Scholz': 'شولتز', 'Xi Jinping': 'شی جین‌پینگ', 'Merkel': 'مرکل',
@@ -265,7 +268,7 @@ GEO_NAMES = {
     'ExxonMobil': 'اکسان‌موبیل', 'TotalEnergies': 'توتال‌انرژی',
 }
 
-# Iran respectful terminology
+# ================= IRAN RESPECT GLOSSARY =================
 IRAN_RESPECT = {
     'Iranian regime': 'جمهوری اسلامی ایران',
     'Iranian government': 'دولت ایران',
@@ -285,7 +288,7 @@ IRAN_RESPECT = {
     'NIOC': 'شرکت ملی نفت ایران',
 }
 
-# Persian grammar corrections (common LLM mistakes)
+# ================= PERSIAN GRAMMAR FIXES =================
 GRAMMAR_FIXES = {
     # Meaningless phrases -> natural Persian
     'پاسخ ایجاد خواهد کرد': 'پاسخ خواهد داد',
@@ -326,7 +329,7 @@ GRAMMAR_FIXES = {
     'بوتن': 'پوتین',
 }
 
-# LLM artifact patterns to remove
+# ================= LLM ARTIFACT PATTERNS =================
 LLM_ARTIFACT_PATTERNS = [
     r'ترجمه[‌\s]*:',
     r'خلاصه[‌\s]*:',
@@ -350,7 +353,7 @@ LLM_ARTIFACT_PATTERNS = [
 # Repeated word pattern
 REPEATED_WORD_PATTERN = r'\b(\w+)(\s+\1\b)+'
 
-# Sentiment keywords
+# ================= SENTIMENT KEYWORDS =================
 BULLISH_GOLD = [
     'rate cut', 'weak dollar', 'geopolitical tension', 'recession',
     'inflation', 'safe haven', 'central bank buying', 'stimulus',
