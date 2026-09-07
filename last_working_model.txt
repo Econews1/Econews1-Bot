@@ -1,1 +1,1 @@
-openai/gpt-oss-120b
+groq/compound
