@@ -1,3 +1,10 @@
+Here's the fixed code with the syntax errors corrected. The main issues were:
+
+1. A stray `[` after `"https://www.marketwatch.com/rss/topstories",` that opened a nested list never closed.
+2. A premature `]` that closed `RSS_FEEDS` before the Persian RSS URLs.
+3. An orphaned `[...]` block after `PERSIAN_ECONOMIC_KEYWORDS` that wasn't assigned to any variable.
+
+```python
 # config.py
 
 import os
@@ -32,14 +39,11 @@ RSS_FEEDS = [
     # Additional financial
     "https://www.investing.com/rss/news_25.rss",
     "https://www.marketwatch.com/rss/topstories",
-    [
-    # ... (keep all existing) ...
 
     # ----- VATICAN / CATHOLIC NEWS (statements that may affect global sentiment) -----
     "https://www.vaticannews.va/en/rss.html",          # main Vatican news
     "https://www.vaticannews.va/en/vatican-city.rss",  # Vatican City specific
     "https://www.catholicnewsagency.com/rss",          # CNA (global Catholic news)
-]
 
     # ----- PERSIAN ECONOMIC RSS (where available) -----
     "https://www.eghtesadonline.com/fa/updates/13",
@@ -154,31 +158,31 @@ REQUIRED_ECONOMIC_TERMS = [
     'fed', 'fomc', 'ecb', 'boj', 'boe', 'central bank',
     'interest rate', 'rate hike', 'rate cut', 'monetary policy',
     'federal reserve', 'bank of japan', 'bank of england',
-    
+
     # Economic indicators
     'inflation', 'cpi', 'pce', 'nfp', 'nonfarm', 'unemployment',
     'gdp', 'recession', 'stagflation', 'deflation',
     'consumer price', 'producer price', 'employment report',
-    
+
     # Gold & precious metals
     'gold', 'silver', 'precious metal', 'xau', 'xag',
     'bullion', 'gold price', 'gold market', 'gold reserve',
-    
+
     # Oil & energy
     'oil', 'crude', 'brent', 'wti', 'opec',
     'petroleum', 'energy crisis', 'oil price', 'oil market',
     'oil production', 'oil export', 'oil sanction',
-    
+
     # Currency & forex
     'dollar', 'dxy', 'currency', 'forex',
     'exchange rate', 'dollar index', 'us dollar',
-    
+
     # Bonds & yields
     'treasury', 'yield', 'bond',
-    
+
     # Trade & sanctions
     'sanction', 'trade war', 'tariff', 'embargo',
-    
+
     # Market events
     'stock market', 'market crash', 'market volatility',
     'financial crisis', 'economic crisis',
@@ -203,7 +207,7 @@ BLOCKED_TERMS = [
     'fashion', 'award', 'red carpet', 'premiere',
     'art', 'culture', 'museum', 'gallery', 'exhibition',
     'literature', 'poetry', 'novel', 'book fair',
-    
+
     # Non-economic news
     'earthquake', 'hurricane', 'tornado', 'flood', 'wildfire',
     'police', 'crime', 'murder', 'shooting', 'accident',
@@ -216,13 +220,13 @@ BLOCKED_TERMS = [
     'wedding', 'birthday', 'funeral', 'obituary',
     'technology', 'gadget', 'smartphone', 'app',
     'gaming', 'video game', 'esports',
-    
+
     # Low-value financial news
     'earnings', 'quarterly report', 'stock split', 'dividend',
     'ipo', 'merger', 'acquisition', 'buyout',
     'real estate', 'property', 'housing market',
     'cryptocurrency', 'bitcoin', 'ethereum', 'crypto', 'nft',
-    
+
     # Persian non-economic terms
     'فیلم', 'سینما', 'ورزش', 'جشنواره', 'هنرمند', 'فرهنگی',
     'دانش‌آموز', 'مدرسه', 'دانشگاه', 'آموزش', 'معلم',
@@ -247,9 +251,6 @@ PERSIAN_ECONOMIC_KEYWORDS = [
     'پوند', 'ین', 'یوان', 'شاخص', 'بازار سرمایه', 'بازار مالی',
     'حواله', 'مبادله', 'صرافی', 'ذخایر ارزی', 'ترازنامه',
     'سیاست پولی', 'سیاست مالی', 'کسری بودجه', 'بدهی',
-]
-[
-    # ... (keep existing) ...
     # New geopolitical terms
     'جنگ', 'درگیری', 'نظامی', 'حمله', 'عملیات',
     'تنش', 'برجام', 'تحریم', 'مذاکره', 'آتش‌بس',
@@ -259,6 +260,7 @@ PERSIAN_ECONOMIC_KEYWORDS = [
     'یمن', 'عراق', 'افغانستان', 'ترکیه',
     'پاپ', 'واتیکان', 'کاتولیک', 'بیانیه', 'سخنرانی',
 ]
+
 # ================= GEOGRAPHIC NAMES =================
 GEO_NAMES = {
     # Countries
@@ -288,7 +290,7 @@ GEO_NAMES = {
     'Bangladesh': 'بنگلادش', 'Sri Lanka': 'سری‌لانکا', 'Myanmar': 'میانمار',
     'Kazakhstan': 'قزاقستان', 'Uzbekistan': 'ازبکستان', 'Azerbaijan': 'آذربایجان',
     'Armenia': 'ارمنستان', 'Georgia': 'گرجستان', 'Belarus': 'بلاروس',
-    
+
     # Cities
     'Washington': 'واشنگتن', 'Washington D.C.': 'واشنگتن', 'London': 'لندن',
     'Paris': 'پاریس', 'Berlin': 'برلین', 'Beijing': 'پکن', 'Tokyo': 'توکیو',
@@ -314,13 +316,13 @@ GEO_NAMES = {
     'Toronto': 'تورنتو', 'Vancouver': 'ونکوور', 'Montreal': 'مونترال',
     'Sydney': 'سیدنی', 'Melbourne': 'ملبورن', 'Brisbane': 'بریزبن',
     'Perth': 'پرت', 'Auckland': 'اوکلند',
-    
+
     # German states
     'Saxony-Anhalt': 'زاکسن-آنهالت', 'Saxony': 'زاکسن', 'Anhalt': 'آنهالت',
     'Bavaria': 'بایرن', 'Brandenburg': 'براندنبورگ',
     'Baden-Württemberg': 'بادن-وورتمبرگ', 'North Rhine-Westphalia': 'نوردراین-وستفالن',
     'Hesse': 'هسن', 'Lower Saxony': 'نیدرزاکسن',
-    
+
     # Institutions
     'Federal Reserve': 'فدرال رزرو', 'Fed': 'فدرال رزرو',
     'European Central Bank': 'بانک مرکزی اروپا', 'ECB': 'بانک مرکزی اروپا',
@@ -334,7 +336,7 @@ GEO_NAMES = {
     'European Commission': 'کمیسیون اروپا',
     'UN Security Council': 'شورای امنیت سازمان ملل',
     'WTO': 'سازمان تجارت جهانی',
-    
+
     # People
     'Zelensky': 'زلنسکی', 'Zelenskyy': 'زلنسکی', 'Putin': 'پوتین',
     'Biden': 'بایدن', 'Trump': 'ترامپ', 'Macron': 'ماکرون',
@@ -344,7 +346,7 @@ GEO_NAMES = {
     'Witkoff': 'ویتکوف', 'Kushner': 'کوشنر', 'Netanyahu': 'نتانیاهو',
     'Erdogan': 'اردوغان', 'MBS': 'بن سلمان', 'Crown Prince': 'ولیعهد',
     'Lavrov': 'لاوروف', 'Mishustin': 'میخوستین',
-    
+
     # Organizations & companies
     'Gazprom': 'گازپروم', 'Rosneft': 'روسنفت', 'Saudi Aramco': 'آرامکو',
     'BP': 'بی‌پی', 'Shell': 'شل', 'Chevron': 'شورون',
@@ -389,7 +391,7 @@ GRAMMAR_FIXES = {
     'مقامات مقامات': 'مقامات',
     'ارزش از ارزش': 'ارزش',
     'پاسخ ایجاد': 'پاسخ',
-    
+
     # Better Persian equivalents
     'اعلام شد که': 'اعلام کرد',
     'گفته می‌شود که': 'گفته شد',
@@ -399,13 +401,13 @@ GRAMMAR_FIXES = {
     'اظهارنظر کرد': 'گفت',
     'وارد حمله شد': 'حمله کرد',
     'مورد حمله قرار گرفت': 'حمله کرد',
-    
+
     # Fix country names
     'ساکسونی-آنها': 'زاکسن-آنهالت',
     'ساکسونی آنهالت': 'زاکسن-آنهالت',
     'ساکسونی-آنهالت': 'زاکسن-آنهالت',
     'آلمان باختری': 'آلمان غربی',
-    
+
     # Fix people names
     'زلنزی': 'زلنسکی',
     'ویتکاف': 'ویتکوف',
@@ -459,3 +461,4 @@ BEARISH_OIL = [
     'inventory build', 'demand destruction', 'economic weakness',
     'higher interest rates', 'strong dollar', 'oil price drop',
 ]
+```
