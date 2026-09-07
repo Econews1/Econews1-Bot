@@ -50,9 +50,9 @@ RSS_FEEDS = [
 
     # Persian sources
     "https://www.fardayeeghtesad.com/rss",
-    "https://www.eghtesadonline.com/fa/updates/13",   # gold & currency
-    "https://www.eghtesadonline.com/fa/updates/27",   # oil & energy
-    "https://www.eghtesadonline.com/fa/updates/8",    # macro
+    "https://www.eghtesadonline.com/fa/updates/13",
+    "https://www.eghtesadonline.com/fa/updates/27",
+    "https://www.eghtesadonline.com/fa/updates/8",
     "https://www.mehrnews.com/rss",
 ]
 
@@ -96,6 +96,24 @@ RUSSIAN_KEYWORDS = [
     'центральный банк', 'санкции', 'ввп', 'безработица', 'доходность',
     'опек', 'энергетический кризис', 'газ', 'биржа', 'валюта', 'центробанк',
     'процентная ставка', 'фондовый рынок'
+]
+
+# Negative keywords to filter out non-economic news (English + Persian)
+NEGATIVE_KEYWORDS_EN = [
+    'film', 'movie', 'festival', 'sports', 'olympic', 'entertainment',
+    'celebrity', 'cricket', 'football', 'basketball', 'tennis',
+    'fashion', 'music', 'art', 'culture', 'travel', 'food', 'recipe',
+    'weather', 'earthquake', 'hurricane', 'tornado', 'flood', 'wildfire',
+    'police', 'crime', 'murder', 'robbery', 'accident', 'fire',
+    'school', 'university', 'student', 'teacher', 'charity', 'donation',
+    'festival', 'award', 'red carpet'
+]
+
+NEGATIVE_KEYWORDS_FA = [
+    'فیلم', 'سینما', 'ورزش', 'بازی', 'دانش‌آموز', 'لوازم‌التحریر', 'همدان',
+    'آمازون', 'هواپیما', 'بویینگ', 'سقوط', 'آتش‌سوزی', 'زلزله', 'سیل',
+    'پلیس', 'جنایی', 'قتل', 'تصادف', 'خیریه', 'جشنواره', 'موسیقی',
+    'تئاتر', 'نمایشگاه', 'کتاب', 'مدرسه', 'دانشگاه'
 ]
 
 IMPORTANT_COUNTRIES = [
@@ -469,6 +487,11 @@ PROPER_NOUN_CORRECTIONS = {
     'حزب راستگرای دوردست': 'حزب راستگرای افراطی',
     'نودیدیا': 'انویدیا',
     'هاجینگ فیس': 'هاگینگ فیس',
+    'زلنزی': 'زلنسکی',
+    'ویتکاف': 'ویتکوف',
+    'کوشنر': 'کوشنر',
+    'استیو ویتکاف': 'استیو ویتکوف',
+    'جرد کوشنر': 'جرد کوشنر',
 }
 
 CORRECT_TERMS = [
@@ -481,4 +504,6 @@ CORRECT_TERMS = [
     'فدرال رزرو',
     'بانک مرکزی اروپا',
     'اوپک',
+    'زلنسکی',
+    'ویتکوف',
 ]
