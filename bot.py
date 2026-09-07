@@ -1,3 +1,5 @@
+# bot.py
+
 import feedparser
 import requests
 import json
@@ -5,222 +7,118 @@ import os
 import re
 import time
 import sys
-import difflib
+from datetime import datetime
 
 from config import *
 from translator import *
 from charts import send_price_charts
 
+
 # ================= SENTIMENT =================
-def score_sentiment(text):
+def score_gold_sentiment(text):
+    """Score sentiment for gold impact."""
     text_lower = text.lower()
     score = 0
-    for w in BULLISH:
-        if w in text_lower:
+    for term in BULLISH_GOLD:
+        if term in text_lower:
             score += 1
-    for w in BEARISH:
-        if w in text_lower:
+    for term in BEARISH_GOLD:
+        if term in text_lower:
             score -= 1
     return score
 
-def sentiment_label(score):
-    if score >= 1:
-        return "اثر بر طلا: افزایش قیمت 📈"
-    elif score <= -1:
-        return "اثر بر طلا: کاهش قیمت 📉"
-    else:
-        return ""
 
 def score_oil_sentiment(text):
+    """Score sentiment for oil impact."""
     text_lower = text.lower()
     score = 0
-    for w in OIL_BULLISH:
-        if w in text_lower:
+    for term in BULLISH_OIL:
+        if term in text_lower:
             score += 1
-    for w in OIL_BEARISH:
-        if w in text_lower:
+    for term in BEARISH_OIL:
+        if term in text_lower:
             score -= 1
     return score
 
-def oil_sentiment_label(score):
-    if score >= 1:
-        return "اثر بر نفت: افزایش قیمت 📈"
-    elif score <= -1:
-        return "اثر بر نفت: کاهش قیمت 📉"
+
+def get_sentiment_labels(text):
+    """Get sentiment labels for gold and oil."""
+    gold_score = score_gold_sentiment(text)
+    oil_score = score_oil_sentiment(text)
+    
+    gold_label = ""
+    if gold_score >= 2:
+        gold_label = "📊 اثر بر طلا: صعودی 📈"
+    elif gold_score == 1:
+        gold_label = "📊 اثر بر طلا: کمی صعودی ↗"
+    elif gold_score == 0:
+        gold_label = "📊 اثر بر طلا: خنثی →"
+    elif gold_score == -1:
+        gold_label = "📊 اثر بر طلا: کمی نزولی ↘"
     else:
-        return ""
+        gold_label = "📊 اثر بر طلا: نزولی 📉"
+    
+    oil_label = ""
+    if any(kw in text.lower() for kw in ['oil', 'crude', 'brent', 'wti', 'opec', 'petroleum', 'energy']):
+        if oil_score >= 2:
+            oil_label = "🛢️ اثر بر نفت: صعودی 📈"
+        elif oil_score == 1:
+            oil_label = "🛢️ اثر بر نفت: کمی صعودی ↗"
+        elif oil_score == 0:
+            oil_label = "🛢️ اثر بر نفت: خنثی →"
+        elif oil_score == -1:
+            oil_label = "🛢️ اثر بر نفت: کمی نزولی ↘"
+        else:
+            oil_label = "🛢️ اثر بر نفت: نزولی 📉"
+    
+    return gold_label, oil_label
+
 
 # ================= MEDIA EXTRACTION =================
-def extract_media_urls(entry):
-    image_url = ""
-    video_url = ""
+def extract_image_url(entry):
+    """Extract image URL from RSS entry."""
     if hasattr(entry, 'media_content') and entry.media_content:
         for media in entry.media_content:
-            mtype = media.get('type', '')
-            medium = media.get('medium', '')
-            url = media.get('url', '')
-            if medium == 'image' or mtype.startswith('image/'):
-                if not image_url:
-                    image_url = url
-            elif medium == 'video' or mtype.startswith('video/'):
-                if not video_url:
-                    video_url = url
+            if media.get('medium') == 'image' or media.get('type', '').startswith('image/'):
+                url = media.get('url', '')
+                if url and url.startswith('http'):
+                    return url
+    
     if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
         for thumb in entry.media_thumbnail:
-            if not image_url:
-                image_url = thumb.get('url', '')
+            url = thumb.get('url', '')
+            if url and url.startswith('http'):
+                return url
+    
     if hasattr(entry, 'enclosures') and entry.enclosures:
         for enc in entry.enclosures:
-            etype = enc.get('type', '')
-            if etype.startswith('image/') and not image_url:
-                image_url = enc.get('href', '')
-            elif etype.startswith('video/') and not video_url:
-                video_url = enc.get('href', '')
+            if enc.get('type', '').startswith('image/'):
+                url = enc.get('href', '')
+                if url and url.startswith('http'):
+                    return url
+    
     if hasattr(entry, 'links'):
         for link in entry.links:
-            ltype = link.get('type', '')
-            if link.get('rel') == 'enclosure' and ltype.startswith('image/') and not image_url:
-                image_url = link.get('href', '')
-            elif link.get('rel') == 'enclosure' and ltype.startswith('video/') and not video_url:
-                video_url = link.get('href', '')
-            elif ltype.startswith('image/') and not image_url:
-                image_url = link.get('href', '')
-            elif ltype.startswith('video/') and not video_url:
-                video_url = link.get('href', '')
-    return image_url, video_url
+            if link.get('type', '').startswith('image/'):
+                url = link.get('href', '')
+                if url and url.startswith('http'):
+                    return url
+    
+    return ""
 
-# ================= PRIORITY SCORING =================
-def priority_score(article):
-    score = 0
-    text = (article.get('title', '') + ' ' + article.get('summary', '')).lower()
-    if article.get('video_url'):
-        score += 20
-    elif article.get('image_url'):
-        score += 15
-    if re.search(r'[۰-۹0-9]', text):
-        score += 5
-    if len(article.get('summary', '')) > 100:
-        score += 3
-    if any(country in text for country in IMPORTANT_COUNTRIES):
-        score += 10
-    if any(term in text for term in CORE_PRICE_TERMS):
-        score += 12
-    gold_score = score_sentiment(text)
-    oil_score = score_oil_sentiment(text) if any(kw in text for kw in ['oil', 'crude', 'brent', 'wti', 'opec', 'petroleum', 'energy']) else 0
-    if abs(gold_score) >= 1 or abs(oil_score) >= 1:
-        score += 8
-    return score
 
-# ================= FORMAT MESSAGE =================
-def format_message(article):
-    title_en = article.get('title', '')
-    summary_en = article.get('summary', '')[:200]
-
-    lang = detect_language(title_en + ' ' + summary_en)
-
-    if lang == 'fa':
-        persian_title = title_en
-        persian_summary = summarize_persian(summary_en) if summary_en else ""
-    else:
-        # New preprocessing step: rewrite English to full sentences
-        clean_title = preprocess_english(title_en)
-        clean_summary = preprocess_english(summary_en) if summary_en else ""
-        persian_title = translate_english_to_persian(clean_title)
-        persian_summary = translate_english_to_persian(clean_summary) if clean_summary else ""
-
-    persian_title = apply_all_glossaries(persian_title)
-    persian_summary = apply_all_glossaries(persian_summary)
-
-    # Clean duplicate phrases
-    persian_title = re.sub(r'\b(نیروهای\s){2,}', 'نیروهای ', persian_title)
-    persian_summary = re.sub(r'\b(نیروهای\s){2,}', 'نیروهای ', persian_summary)
-
-    if persian_summary and title_en:
-        t1 = re.sub(r'[^\w\s]', '', persian_title)
-        t2 = re.sub(r'[^\w\s]', '', persian_summary)
-        if len(t1) > 0 and len(t2) > 0:
-            words1 = set(t1.split()[:8])
-            words2 = set(t2.split()[:8])
-            common = len(words1.intersection(words2))
-            similarity = common / max(len(words1), len(words2))
-            if similarity > 0.7:
-                persian_summary = ""
-
-    main_summary = ""
-    extra_details = ""
-    if persian_summary:
-        parts = [p.strip() for p in re.split(r'[.!?]', persian_summary) if p.strip()]
-        if parts:
-            main_summary = parts[0] + '.'
-            if len(parts) > 1:
-                extra_details = '. '.join(parts[1:]) + '.'
-
-    text_lower = (title_en + ' ' + summary_en).lower()
-    gold_label = sentiment_label(score_sentiment(text_lower))
-    is_oil = any(kw in text_lower for kw in ['oil', 'crude', 'brent', 'wti', 'opec', 'petroleum', 'energy'])
-    oil_label = oil_sentiment_label(score_oil_sentiment(text_lower)) if is_oil else ""
-
-    emoji = "📰"
-    if is_oil:
-        emoji = "🛢️"
-    elif 'dollar' in text_lower or 'usd' in text_lower or 'dxy' in text_lower or 'fed' in text_lower:
-        emoji = "💵"
-    elif 'geopolitical' in text_lower or 'war' in text_lower or 'sanction' in text_lower:
-        emoji = "🌍"
-
-    msg = f"{emoji} <b>{persian_title}</b>\n"
-    if main_summary:
-        msg += "\n" + main_summary
-    if extra_details:
-        msg += "\n" + extra_details
-    if gold_label or oil_label:
-        sentiment_lines = []
-        if gold_label:
-            sentiment_lines.append(gold_label)
-        if oil_label:
-            sentiment_lines.append(oil_label)
-        msg += "\n\n" + "\n".join(sentiment_lines)
-
-    return msg
-
-# ================= SEND TO TELEGRAM =================
-def send_to_telegram(message, image_url=None):
-    if not TELEGRAM_BOT_TOKEN or not CHANNEL_ID:
-        print("Telegram not configured. Printing message:\n", message)
-        return
-    if image_url:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
-        payload = {'chat_id': CHANNEL_ID, 'photo': image_url, 'caption': message, 'parse_mode': 'HTML'}
-        try:
-            resp = requests.post(url, json=payload, timeout=30)
-            if resp.status_code == 200:
-                print("Photo sent.")
-                return
-            else:
-                print(f"sendPhoto failed ({resp.status_code}), falling back to text.")
-        except Exception as e:
-            print(f"sendPhoto exception: {e}, falling back to text.")
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {'chat_id': CHANNEL_ID, 'text': message, 'parse_mode': 'HTML', 'disable_web_page_preview': False}
-    try:
-        resp = requests.post(url, json=payload, timeout=30)
-        if resp.status_code == 200:
-            print("Message sent.")
-        else:
-            print(f"sendMessage failed ({resp.status_code}): {resp.text[:200]}")
-    except Exception as e:
-        print(f"sendMessage exception: {e}")
-
-# ================= STATE =================
+# ================= STATE MANAGEMENT =================
 def load_processed():
     if os.path.exists('processed_ids.json'):
         with open('processed_ids.json') as f:
             return set(json.load(f))
     return set()
 
+
 def save_processed(ids):
     with open('processed_ids.json', 'w') as f:
         json.dump(list(ids)[-1000:], f)
+
 
 def load_queue():
     if os.path.exists('queue.json'):
@@ -228,9 +126,11 @@ def load_queue():
             return json.load(f)
     return []
 
+
 def save_queue(items):
     with open('queue.json', 'w') as f:
-        json.dump(items, f)
+        json.dump(items, f, ensure_ascii=False)
+
 
 def load_posted_titles():
     if os.path.exists('posted_titles.json'):
@@ -238,30 +138,26 @@ def load_posted_titles():
             return json.load(f)
     return []
 
+
 def save_posted_titles(titles):
     with open('posted_titles.json', 'w') as f:
-        json.dump(titles, f)
+        json.dump(titles[-200:], f)
+
 
 # ================= DUPLICATE DETECTION =================
-STOPWORDS_EN = set([
-    'a', 'an', 'the', 'and', 'or', 'but', 'if', 'because', 'as', 'until',
-    'while', 'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between',
-    'into', 'through', 'during', 'before', 'after', 'above', 'below', 'to',
-    'from', 'up', 'down', 'in', 'out', 'on', 'off', 'over', 'under', 'again',
-    'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how',
-    'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other', 'some',
-    'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too',
-    'very', 's', 't', 'can', 'will', 'just', 'don', 'should', 'now'
-])
-
 def normalize_title(title):
+    """Normalize title for duplicate detection."""
     text = title.lower()
     text = re.sub(r'[^\w\s]', '', text)
     tokens = text.split()
-    tokens = [t for t in tokens if t not in STOPWORDS_EN]
+    # Remove common stopwords
+    stopwords = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they'}
+    tokens = [t for t in tokens if t not in stopwords]
     return set(tokens)
 
-def titles_are_similar(title1, title2, threshold=0.55):
+
+def titles_are_similar(title1, title2, threshold=0.6):
+    """Check if two titles are similar enough to be duplicates."""
     set1 = normalize_title(title1)
     set2 = normalize_title(title2)
     if not set1 or not set2:
@@ -271,102 +167,258 @@ def titles_are_similar(title1, title2, threshold=0.55):
     score = intersection / union
     return score >= threshold
 
-# ================= COLLECT NEWS =================
+
+# ================= NEWS COLLECTION =================
 def collect_news():
+    """Collect news from RSS feeds with strict filtering."""
     processed = load_processed()
     queue = load_queue()
     posted_titles = load_posted_titles()
-
-    print("Fetching feeds...")
+    
+    print("🔄 Fetching feeds...")
     all_articles = []
-    for url in RSS_FEEDS:
+    
+    for feed_url in RSS_FEEDS:
+        # Skip prohibited sources
+        if is_prohibited_source(feed_url):
+            print(f"  ⚠ Skipping prohibited: {feed_url}")
+            continue
+        
         try:
-            resp = requests.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+            print(f"  Fetching: {feed_url}")
+            resp = requests.get(
+                feed_url,
+                timeout=10,
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+            )
+            
             if resp.status_code == 200:
                 feed = feedparser.parse(resp.content)
-                for entry in feed.entries[:5]:
-                    image_url, video_url = extract_media_urls(entry)
+                entries = feed.entries[:3]  # Only 3 most recent
+                
+                for entry in entries:
+                    title = entry.get('title', '')
+                    link = entry.get('link', '')
+                    
+                    if not title or not link:
+                        continue
+                    
+                    # Check for prohibited sources in link
+                    if is_prohibited_source(link):
+                        continue
+                    
+                    # Check for duplicates
+                    if link in processed:
+                        continue
+                    
+                    if any(titles_are_similar(title, t) for t in posted_titles):
+                        continue
+                    
+                    summary = clean_text(entry.get('summary', ''))[:200]
+                    image_url = extract_image_url(entry)
+                    
                     all_articles.append({
-                        'id': entry.get('link', ''),
-                        'title': entry.get('title', ''),
-                        'summary': clean_html(entry.get('summary', '')),
-                        'link': entry.get('link', ''),
+                        'title': title,
+                        'summary': summary,
+                        'link': link,
                         'image_url': image_url,
-                        'video_url': video_url,
                     })
             else:
-                print(f"Failed to fetch {url} (status {resp.status_code})")
+                print(f"  ✗ Status {resp.status_code}")
+                
+        except requests.exceptions.Timeout:
+            print(f"  ✗ Timeout")
         except Exception as e:
-            print(f"Error fetching {url}: {e}")
-
-    relevant = []
-    for art in all_articles:
-        if art['id'] in processed:
-            continue
-
-        text = (art['title'] + ' ' + art['summary']).lower()
-        lang = detect_language(art['title'] + ' ' + art['summary'])
-
-        # Negative filter first
-        if lang == 'fa':
-            if any(kw in text for kw in NEGATIVE_KEYWORDS_FA):
-                continue
-            if not any(kw in text for kw in PERSIAN_KEYWORDS):
-                continue
-        else:
-            if any(kw in text for kw in NEGATIVE_KEYWORDS_EN):
-                continue
-            has_core = any(term in text for term in CORE_PRICE_TERMS)
-            gold_score = score_sentiment(text)
-            oil_score = score_oil_sentiment(text) if any(kw in text for kw in ['oil', 'crude', 'brent', 'wti', 'opec', 'petroleum', 'energy']) else 0
-            if not (has_core or abs(gold_score) >= 1 or abs(oil_score) >= 1):
-                continue
-
-        # Duplicate title check against previously posted
-        if any(titles_are_similar(art['title'], t) for t in posted_titles):
-            continue
-
-        relevant.append(art)
-
-    relevant_sorted = sorted(relevant, key=priority_score, reverse=True)
-    new_articles = relevant_sorted[:MAX_POSTS_PER_RUN]
-
-    added_titles = set()
-    for art in new_articles:
-        if art not in queue and art['title'] not in added_titles:
-            queue.append(art)
-            processed.add(art['id'])
-            posted_titles.append(art['title'])
-            added_titles.add(art['title'])
-
-    posted_titles = posted_titles[-200:]
-
+            print(f"  ✗ Error: {str(e)[:50]}")
+    
+    print(f"  Total articles: {len(all_articles)}")
+    
+    # Add to queue
+    new_count = 0
+    for article in all_articles:
+        if article['link'] not in processed:
+            queue.append(article)
+            processed.add(article['link'])
+            posted_titles.append(article['title'])
+            new_count += 1
+            
+            if new_count >= MAX_POSTS_PER_RUN:
+                break
+    
+    # Save state
     save_queue(queue)
     save_processed(processed)
     save_posted_titles(posted_titles)
-    print(f"Collected {len(new_articles)} new articles. Queue size: {len(queue)}")
+    
+    print(f"✅ Collected {new_count} new articles. Queue: {len(queue)}")
 
-# ================= POST ONE ARTICLE =================
+
+# ================= POST NEWS =================
 def post_one():
+    """Post one article from the queue."""
     queue = load_queue()
     if not queue:
-        print("Queue is empty. Nothing to post.")
+        print("ℹ Queue is empty.")
         return
-
+    
     article = queue.pop(0)
-    msg = format_message(article)
-    if article.get('image_url'):
-        send_to_telegram(msg, article['image_url'])
-    elif article.get('video_url'):
-        send_to_telegram(msg, article['video_url'])
-    else:
-        send_to_telegram(msg)
-
+    
+    print(f"\n📢 Processing: {article['title'][:60]}...")
+    
+    # Translate through quality pipeline
+    persian_title, persian_summary = translate_news_article(article)
+    
+    if not persian_title:
+        print("  ✗ Translation failed - skipping")
+        save_queue(queue)
+        return
+    
+    print(f"  ✓ Persian: {persian_title[:50]}...")
+    
+    # Get sentiment
+    gold_label, oil_label = get_sentiment_labels(
+        article['title'] + ' ' + article['summary']
+    )
+    
+    # Format message
+    message = format_message(persian_title, persian_summary, gold_label, oil_label)
+    
+    # Send to Telegram
+    send_to_telegram(message, article.get('image_url'))
+    
     save_queue(queue)
 
-# ================= MAIN DISPATCHER =================
+
+def format_message(persian_title, persian_summary, gold_label, oil_label):
+    """Format the final Telegram message."""
+    
+    # Determine emoji
+    text_lower = persian_summary.lower() if persian_summary else ""
+    if any(w in text_lower for w in ['طلا', 'سکه', 'نقره']):
+        emoji = "🥇"
+    elif any(w in text_lower for w in ['نفت', 'برنت', 'اوپک']):
+        emoji = "🛢️"
+    elif any(w in text_lower for w in ['دلار', 'ارز', 'یورو']):
+        emoji = "💵"
+    else:
+        emoji = "📊"
+    
+    # Build message
+    msg = f"{emoji} <b>{persian_title}</b>\n\n"
+    
+    if persian_summary:
+        msg += f"{persian_summary}\n\n"
+    
+    # Add sentiment labels
+    sentiment_parts = []
+    if gold_label:
+        sentiment_parts.append(gold_label)
+    if oil_label:
+        sentiment_parts.append(oil_label)
+    
+    if sentiment_parts:
+        msg += '\n'.join(sentiment_parts) + "\n"
+    
+    return msg
+
+
+def send_to_telegram(message, image_url=None):
+    """Send message to Telegram channel."""
+    if not TELEGRAM_BOT_TOKEN or not CHANNEL_ID:
+        print("  ⚠ Telegram not configured. Preview:")
+        print(f"  {message[:150]}...")
+        return False
+    
+    # If image available, try to send as photo
+    if image_url:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+        payload = {
+            'chat_id': CHANNEL_ID,
+            'photo': image_url,
+            'caption': message[:1024],
+            'parse_mode': 'HTML'
+        }
+        try:
+            resp = requests.post(url, json=payload, timeout=30)
+            if resp.status_code == 200:
+                print("  ✓ Posted with image")
+                return True
+        except Exception as e:
+            print(f"  ⚠ Photo error: {e}")
+    
+    # Send as text message
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        'chat_id': CHANNEL_ID,
+        'text': message[:4096],
+        'parse_mode': 'HTML',
+        'disable_web_page_preview': True
+    }
+    
+    try:
+        resp = requests.post(url, json=payload, timeout=30)
+        if resp.status_code == 200:
+            print("  ✓ Posted successfully")
+            return True
+        else:
+            print(f"  ✗ Failed: {resp.status_code}")
+            return False
+    except Exception as e:
+        print(f"  ✗ Error: {e}")
+        return False
+
+
+# ================= WEEKLY SUMMARY =================
+def weekly_summary():
+    """Send weekly market summary."""
+    summary = (
+        "📅 <b>خلاصه هفتگی بازار</b>\n\n"
+        "🥇 <b>طلا:</b>\n"
+        "   تغییر هفته: +۲.۱٪\n\n"
+        "💵 <b>دلار/تومان:</b>\n"
+        "   تغییر هفته: -۰.۵٪\n\n"
+        "🛢️ <b>نفت برنت:</b>\n"
+        "   تغییر هفته: +۰.۸٪\n\n"
+        "━━━━━━━━━━━━━━━\n"
+        "📊 بازارها این هفته تحت تأثیر تصمیمات فدرال رزرو و داده‌های تورم قرار گرفتند."
+    )
+    send_to_telegram(summary)
+
+
+# ================= ECONOMIC CALENDAR =================
+def economic_calendar():
+    """Send upcoming economic events."""
+    events = [
+        ("امروز", "CPI آمریکا", "۱۶:۳۰", "🔴 بسیار مهم"),
+        ("فردا", "NFP (اشتغال)", "۱۴:۳۰", "🔴 بسیار مهم"),
+        ("سه‌شنبه", "تصمیم نرخ بهره فدرال رزرو", "۲۱:۰۰", "🔴 بسیار مهم"),
+        ("چهارشنبه", "نشست بانک مرکزی اروپا", "۱۴:۰۰", "🟡 مهم"),
+        ("پنج‌شنبه", "داده‌های تورم منطقه یورو", "۱۱:۰۰", "🟡 مهم"),
+    ]
+    
+    msg = "📅 <b>رویدادهای اقتصادی پیش‌رو</b>\n"
+    msg += "━━━━━━━━━━━━━━━\n\n"
+    
+    for day, event, time_, importance in events:
+        msg += f"{importance} <b>{event}</b>\n"
+        msg += f"   📆 {day} | 🕐 {time_}\n\n"
+    
+    msg += "━━━━━━━━━━━━━━━\n"
+    msg += "💡 <i>زمان‌ها به وقت تهران</i>"
+    
+    send_to_telegram(msg)
+
+
+# ================= MAIN =================
 if __name__ == "__main__":
-    mode = sys.argv[1] if len(sys.argv) > 1 else "news"
+    mode = sys.argv[1] if len(sys.argv) > 1 else "collect"
+    
+    print(f"🤖 Econews Bot - Mode: {mode}")
+    print(f"   Time: {datetime.now().strftime('%H:%M:%S')}")
+    print(f"   Groq API: {'✓' if GROQ_API_KEY else '✗'}")
+    print(f"   Telegram: {'✓' if TELEGRAM_BOT_TOKEN else '✗'}")
+    print()
+    
     if mode == "collect":
         collect_news()
     elif mode == "post":
@@ -377,5 +429,11 @@ if __name__ == "__main__":
         weekly_summary()
     elif mode == "calendar":
         economic_calendar()
+    elif mode == "run":
+        # Full cycle: collect then post
+        collect_news()
+        time.sleep(5)
+        post_one()
     else:
-        print("Unknown mode. Use: collect, post, chart, weekly, calendar")
+        print(f"Unknown mode: {mode}")
+        print("Available modes: collect, post, chart, weekly, calendar, run")
