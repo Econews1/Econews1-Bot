@@ -9,7 +9,7 @@ BONBAST_URL = "https://www.bonbast.com"
 
 # ================= RSS FEEDS =================
 RSS_FEEDS = [
-    # Core financial
+    # Core financial (existing)
     "https://www.actionforex.com/feed",
     "https://www.fxstreet.com/rss/news",
     "https://www.kitco.com/news/rss",
@@ -18,27 +18,58 @@ RSS_FEEDS = [
     "https://www.ecb.europa.eu/rss/press.html",
     "https://www.eia.gov/rss/todayinenergy.xml",
 
-    # Global news (business sections only)
+    # Global news (business sections) – existing
     "https://rss.dw.com/rdf/rss-en-bus",
     "https://www.france24.com/en/business/rss",
     "https://www.aljazeera.com/xml/rss/all.xml",
     "https://www.theguardian.com/uk/business/rss",
 
-    # Country-specific business
+    # Country-specific business – existing
     "https://www.telegraph.co.uk/business/rss.xml",
     "https://tass.com/rss/v2.xml",
     "https://scmp.com/rss/4/feed",
 
-    # Additional financial
+    # Additional financial – existing
     "https://www.investing.com/rss/news_25.rss",
     "https://www.marketwatch.com/rss/topstories",
 
-    # Persian economic sources (skip translation)
+    # Persian economic sources (skip translation) – existing
     "https://www.fardayeeghtesad.com/rss",
     "https://www.eghtesadonline.com/fa/updates/13",
     "https://www.eghtesadonline.com/fa/updates/27",
     "https://www.eghtesadonline.com/fa/updates/8",
+
+    # ===== NEW IRANIAN SOURCES =====
+    "https://www.shana.ir/rss/tp/14",        # نفت (Oil)
+    "https://www.shana.ir/rss/tp/18",        # گاز (Gas)
+    "https://www.shana.ir/rss/tp/4",         # پتروشیمی (Petrochemical)
+    "https://www.shana.ir/rss/tp/5",         # بین‌الملل (International)
+    "https://www.irasin.ir/rss/tp/23",       # اقتصاد (Economy)
+    "https://www.irasin.ir/rss/tp/75",       # اقتصاد جهان (World Economy)
+    "https://www.irasin.ir/rss/tp/80",       # بازارها (Markets)
+    "https://www.irasin.ir/rss/tp/34",       # نفت، گاز و پتروشیمی (Energy)
+    "https://www.sedayebourse.ir/rss/tp/9042",   # اخبار اقتصادی
+    "https://www.sedayebourse.ir/rss/tp/2",      # بازار سهام (Stock Market)
+    "https://www.foodpress.ir/rss/tp/7034",      # اقتصادی
+    "https://www.foodpress.ir/rss/tp/6033",      # بازار
+    "http://shada.ir/rss/tp/14",                 # اقتصاد کلان (Macro)
+    "http://shada.ir/rss/tp/131",                # بانک (Banking)
+    "https://eximland.ir/rss",                   # صادرات و واردات
+    "https://cbi.ir/rss",                        # بانک مرکزی (Central Bank)
+
+    # ===== NEW GLOBAL SOURCES =====
+    "http://feeds.bbci.co.uk/news/business/rss.xml",
+    "https://feeds.reuters.com/Reuters/worldNews",
+    "https://www.reutersagency.com/feed/?best-regions=world&post_type=best",
+    "https://www.cnbc.com/id/100003114/device/rss/rss.html",
+    "https://www.marketwatch.com/rss/marketpulse",
+    "https://www.investing.com/rss/news_1063.rss",   # Stocks
+    "https://www.investing.com/rss/news_14.rss",     # Forex
+    "https://eulerpool.com/news/feed.xml",
+    "https://en.mercopress.com/rss/economy",
+    "https://en.mercopress.com/rss/energy",
 ]
+
 
 # ================= PROHIBITED SOURCES =================
 PROHIBITED_SOURCES = [
@@ -52,10 +83,13 @@ PROHIBITED_SOURCES = [
     'manoto.tv',
     'iran-international.com',
     'iranwire.com',
+    # you may add more if needed
 ]
+
 
 # ================= PERSIAN SOURCE DOMAINS =================
 PERSIAN_SOURCE_DOMAINS = [
+    # Existing
     'fardayeeghtesad.com',
     'eghtesadonline.com',
     'eghtesadnews.com',
@@ -68,8 +102,16 @@ PERSIAN_SOURCE_DOMAINS = [
     'tehrantimes.com',
     'presstv.co.uk',
     'presstv.ir',
-]
 
+    # New Iranian domains
+    'shana.ir',
+    'irasin.ir',
+    'sedayebourse.ir',
+    'foodpress.ir',
+    'shada.ir',
+    'eximland.ir',
+    'cbi.ir',
+]
 # ================= BOT SETTINGS =================
 POST_INTERVAL = 360          # 6 minutes between posts
 MAX_POSTS_PER_RUN = 3        # Quality over quantity
