@@ -8,6 +8,7 @@ import re
 import time
 import sys
 from datetime import datetime
+from bs4 import BeautifulSoup
 
 from config import *
 from translator import *
@@ -208,9 +209,87 @@ def titles_are_similar(title1, title2, threshold=0.6):
     return score >= threshold
 
 
+# ================= SCRAPING FOR NON-RSS SOURCES =================
+def scrape_farsnews():
+    """Scrape economy news from Farsnews (category page)."""
+    articles = []
+    url = "https://farsnews.ir/Economy/posts"
+    try:
+        resp = requests.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+        if resp.status_code != 200:
+            return articles
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        # Farsnews article links usually in <a> with href containing '/news/'
+        for a in soup.find_all('a', href=True):
+            href = a.get('href')
+            if href and '/news/' in href:
+                # Construct full URL if relative
+                if href.startswith('/'):
+                    href = 'https://farsnews.ir' + href
+                title = a.get_text(strip=True)
+                if title and len(title) > 10:
+                    articles.append({
+                        'title': title,
+                        'link': href,
+                        'summary': '',
+                        'image_url': ''
+                    })
+        # Limit to 5 most recent (first 5 found)
+        return articles[:5]
+    except Exception as e:
+        print(f"  ⚠ Farsnews scraping error: {e}")
+        return []
+
+
+def scrape_donya():
+    """Scrape economy news from Donya-e-Eqtesad (main page)."""
+    articles = []
+    url = "https://donya-e-eqtesad.com"
+    try:
+        resp = requests.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+        if resp.status_code != 200:
+            return articles
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        # Look for article links – often in <h2> or <h3> with class
+        for h in soup.find_all(['h2', 'h3']):
+            a = h.find('a')
+            if a and a.get('href'):
+                href = a.get('href')
+                if href.startswith('/'):
+                    href = 'https://donya-e-eqtesad.com' + href
+                title = a.get_text(strip=True)
+                if title and len(title) > 10:
+                    articles.append({
+                        'title': title,
+                        'link': href,
+                        'summary': '',
+                        'image_url': ''
+                    })
+        return articles[:5]
+    except Exception as e:
+        print(f"  ⚠ Donya scraping error: {e}")
+        return []
+
+
+def scrape_all_sources():
+    """Collect articles from all non-RSS sources defined in SCRAPE_SOURCES."""
+    all_articles = []
+    for source in SCRAPE_SOURCES:
+        if source['type'] == 'farsnews':
+            articles = scrape_farsnews()
+        elif source['type'] == 'donya':
+            articles = scrape_donya()
+        else:
+            continue
+        if articles:
+            print(f"  Scraped {len(articles)} from {source['name']}")
+            all_articles.extend(articles)
+    return all_articles
+
+
 # ================= NEWS COLLECTION =================
 def collect_news():
-    """Collect news from RSS feeds with strict filtering."""
+    """Collect news from RSS feeds and scraped sources with strict filtering."""
     processed = load_processed()
     queue = load_queue()
     posted_titles = load_posted_titles()
@@ -218,6 +297,7 @@ def collect_news():
     print("🔄 Fetching feeds...")
     all_articles = []
     
+    # ---- RSS FEEDS ----
     for feed_url in RSS_FEEDS:
         # Skip prohibited sources
         if is_prohibited_source(feed_url):
@@ -270,6 +350,13 @@ def collect_news():
             print(f"  ✗ Timeout")
         except Exception as e:
             print(f"  ✗ Error: {str(e)[:50]}")
+    
+    # ---- SCRAPED SOURCES ----
+    scraped = scrape_all_sources()
+    for art in scraped:
+        # Avoid duplicates by checking link
+        if art['link'] not in processed and not any(titles_are_similar(art['title'], t) for t in posted_titles):
+            all_articles.append(art)
     
     print(f"  Total articles: {len(all_articles)}")
     
