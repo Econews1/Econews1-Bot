@@ -122,15 +122,16 @@ def format_message(article):
         persian_title = title_en
         persian_summary = summarize_persian(summary_en) if summary_en else ""
     else:
-        simple_title_en = simplify_to_english(title_en)
-        simple_summary_en = simplify_to_english(summary_en) if summary_en else ""
-        persian_title = translate_english_to_persian(simple_title_en)
-        persian_summary = translate_english_to_persian(simple_summary_en) if simple_summary_en else ""
+        # New preprocessing step: rewrite English to full sentences
+        clean_title = preprocess_english(title_en)
+        clean_summary = preprocess_english(summary_en) if summary_en else ""
+        persian_title = translate_english_to_persian(clean_title)
+        persian_summary = translate_english_to_persian(clean_summary) if clean_summary else ""
 
     persian_title = apply_all_glossaries(persian_title)
     persian_summary = apply_all_glossaries(persian_summary)
 
-    # Remove duplicated words after glossary
+    # Clean duplicate phrases
     persian_title = re.sub(r'\b(نیروهای\s){2,}', 'نیروهای ', persian_title)
     persian_summary = re.sub(r'\b(نیروهای\s){2,}', 'نیروهای ', persian_summary)
 
