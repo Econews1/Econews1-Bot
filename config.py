@@ -13,549 +13,363 @@ RSS_FEEDS = [
     "https://www.ecb.europa.eu/rss/press.html",
     "https://www.eia.gov/rss/todayinenergy.xml",
 
-    # Global
-    "https://rss.dw.com/rdf/rss-en-world",
-    "https://www.france24.com/en/rss",
+    # Global news (business sections only)
+    "https://rss.dw.com/rdf/rss-en-bus",
+    "https://www.france24.com/en/business/rss",
     "https://www.aljazeera.com/xml/rss/all.xml",
-    "https://www.theguardian.com/world/rss",
-    "https://feeds.bbci.co.uk/news/rss.xml",
-
-    # UK
-    "https://www.telegraph.co.uk/business/rss.xml",
     "https://www.theguardian.com/uk/business/rss",
 
-    # France
-    "https://www.france24.com/en/business/rss",
-
-    # Germany
-    "https://rss.dw.com/rdf/rss-en-ger",
-    "https://rss.dw.com/rdf/rss-en-bus",
-
-    # Russia
+    # Country-specific business
+    "https://www.telegraph.co.uk/business/rss.xml",
     "https://tass.com/rss/v2.xml",
-    "https://www.themoscowtimes.com/rss/news",
-
-    # China/Asia
     "https://scmp.com/rss/4/feed",
-    "https://rss.dw.com/rdf/rss-en-asia",
-
-    # Middle East
-    "https://www.france24.com/en/middle-east/rss",
 
     # Additional financial
     "https://www.investing.com/rss/news_25.rss",
     "https://www.marketwatch.com/rss/topstories",
-    "https://feeds.feedburner.com/zerohedge/feed",
-    "https://news.google.com/rss/search?q=gold+OR+oil+OR+dollar+when:1d&hl=en-US&gl=US&ceid=US:en",
 
-    # Persian sources (economy-focused)
+    # Persian economic sources (skip translation)
     "https://www.fardayeeghtesad.com/rss",
-    "https://www.eghtesadonline.com/fa/updates/13",   # gold & currency
-    "https://www.eghtesadonline.com/fa/updates/27",   # oil & energy
-    "https://www.eghtesadonline.com/fa/updates/8",    # macro
-    # Removed Mehrnews due to non-economic content
-    # Add more if available
+    "https://www.eghtesadonline.com/fa/updates/13",
+    "https://www.eghtesadonline.com/fa/updates/27",
+    "https://www.eghtesadonline.com/fa/updates/8",
 ]
 
-POST_INTERVAL = 360          # 6 minutes
-MAX_POSTS_PER_RUN = 8
+# ================= PROHIBITED SOURCES =================
+# These sources are NEVER allowed
+PROHIBITED_SOURCES = [
+    'bbc.com/persian',
+    'bbc.co.uk/persian',
+    'iranintl.com',
+    'voanews.com',
+    'radiofarda.com',
+    'persian.service',
+    'bbcpersian.com',
+    'manoto.tv',
+    'iran-international.com',
+    'iranwire.com',
+]
+
+# ================= PERSIAN SOURCE DOMAINS =================
+# These sources already output Persian - skip translation
+PERSIAN_SOURCE_DOMAINS = [
+    'fardayeeghtesad.com',
+    'eghtesadonline.com',
+    'eghtesadnews.com',
+    'donya-e-eqtesad.com',
+    'tgju.org',
+    'irna.ir',
+    'isna.ir',
+    'mehrnews.com',
+    'farsnews.ir',
+    'tehrantimes.com',
+    'presstv.co.uk',
+    'presstv.ir',
+]
+
+POST_INTERVAL = 360          # 6 minutes between posts
+MAX_POSTS_PER_RUN = 3        # Quality over quantity
+MAX_RUNTIME = 20 * 60        # 20 minutes max per run
+
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
 
-PREFERRED_MODELS = [
-    "llama-3.1-8b-instant",
-    "openai/gpt-oss-20b",
-]
-FALLBACK_MODELS = [
-    "qwen/qwen3.6-27b",
-    "qwen/qwen3.8-27b",
-]
+# Only use the best model
+TRANSLATION_MODEL = "openai/gpt-oss-20b"
+FALLBACK_MODELS = ["llama-3.1-8b-instant", "qwen/qwen3-32b"]
+
 MODEL_CACHE_FILE = "last_working_model.txt"
 
-# ================= CORE PRICE TERMS =================
-CORE_PRICE_TERMS = [
-    'fed', 'fomc', 'ecb', 'boj', 'boe', 'rate hike', 'rate cut',
-    'interest rate decision', 'monetary policy', 'central bank',
-    'inflation', 'cpi', 'nfp', 'unemployment', 'gdp',
-    'recession', 'trade war', 'sanction', 'geopolitical',
-    'oil price', 'crude oil', 'brent', 'wti', 'opec',
-    'gold price', 'gold', 'dollar index', 'dxy',
-    'treasury yield', 'bond yields', 'stock market crash',
-    'currency crisis', 'energy crisis'
+# ================= STRICT ECONOMIC FILTER =================
+# These MUST be present for news to pass
+REQUIRED_ECONOMIC_TERMS = [
+    # Central banks & monetary policy
+    'fed', 'fomc', 'ecb', 'boj', 'boe', 'central bank',
+    'interest rate', 'rate hike', 'rate cut', 'monetary policy',
+    'federal reserve', 'bank of japan', 'bank of england',
+    
+    # Economic indicators
+    'inflation', 'cpi', 'pce', 'nfp', 'nonfarm', 'unemployment',
+    'gdp', 'recession', 'stagflation', 'deflation',
+    'consumer price', 'producer price', 'employment report',
+    
+    # Gold & precious metals
+    'gold', 'silver', 'precious metal', 'xau', 'xag',
+    'bullion', 'gold price', 'gold market', 'gold reserve',
+    
+    # Oil & energy
+    'oil', 'crude', 'brent', 'wti', 'opec',
+    'petroleum', 'energy crisis', 'oil price', 'oil market',
+    'oil production', 'oil export', 'oil sanction',
+    
+    # Currency & forex
+    'dollar', 'dxy', 'currency', 'forex',
+    'exchange rate', 'dollar index', 'us dollar',
+    
+    # Bonds & yields
+    'treasury', 'yield', 'bond',
+    
+    # Trade & sanctions
+    'sanction', 'trade war', 'tariff', 'embargo',
+    
+    # Market events
+    'stock market', 'market crash', 'market volatility',
+    'financial crisis', 'economic crisis',
 ]
 
-PERSIAN_KEYWORDS = [
+# These BLOCK news from passing
+BLOCKED_TERMS = [
+    # Entertainment & culture
+    'film', 'movie', 'festival', 'cinema', 'actor', 'actress',
+    'music', 'concert', 'celebrity', 'entertainment',
+    'sport', 'football', 'basketball', 'soccer', 'olympic',
+    'fashion', 'award', 'red carpet', 'premiere',
+    'art', 'culture', 'museum', 'gallery', 'exhibition',
+    'literature', 'poetry', 'novel', 'book fair',
+    
+    # Non-economic news
+    'earthquake', 'hurricane', 'tornado', 'flood', 'wildfire',
+    'police', 'crime', 'murder', 'shooting', 'accident',
+    'school', 'student', 'teacher', 'university', 'education',
+    'hospital', 'patient', 'medical', 'health', 'disease',
+    'charity', 'donation', 'volunteer', 'humanitarian',
+    'weather', 'traffic', 'transport', 'aviation',
+    'recipe', 'food', 'restaurant', 'cooking',
+    'travel', 'tourism', 'vacation', 'hotel',
+    'wedding', 'birthday', 'funeral', 'obituary',
+    'technology', 'gadget', 'smartphone', 'app',
+    'gaming', 'video game', 'esports',
+    
+    # Low-value financial news
+    'earnings', 'quarterly report', 'stock split', 'dividend',
+    'ipo', 'merger', 'acquisition', 'buyout',
+    'real estate', 'property', 'housing market',
+    'cryptocurrency', 'bitcoin', 'ethereum', 'crypto', 'nft',
+    
+    # Persian non-economic terms
+    'فیلم', 'سینما', 'ورزش', 'جشنواره', 'هنرمند', 'فرهنگی',
+    'دانش‌آموز', 'مدرسه', 'دانشگاه', 'آموزش', 'معلم',
+    'بیمارستان', 'درمان', 'پزشکی', 'بیمار', 'سلامت',
+    'خیریه', 'اهدای', 'کمک‌رسانی', 'بشردوستانه',
+    'ورزشگاه', 'تیم ملی', 'بازی', 'فوتبال', 'بسکتبال',
+    'آتش‌سوزی', 'زلزله', 'سیل', 'طوفان', 'خرابی',
+    'پلیس', 'جنایی', 'قتل', 'تصادف', 'جرم',
+    'سفر', 'گردشگری', 'هتل', 'تفریحی',
+    'ازدواج', 'تولد', 'مراسم', 'خاکسپاری',
+    'موسیقی', 'کنسرت', 'تئاتر', 'نمایش',
+    'کتاب', 'ادبیات', 'شعر', 'رمان',
+    'هنر', 'موزه', 'گالری', 'نمایشگاه',
+]
+
+# Persian keywords for economic content (for Persian sources)
+PERSIAN_ECONOMIC_KEYWORDS = [
     'طلا', 'دلار', 'نفت', 'ارز', 'سکه', 'بورس', 'سهام', 'تورم',
     'بانک مرکزی', 'نرخ بهره', 'تحریم', 'قیمت', 'اقتصاد', 'بازار',
     'صادرات', 'واردات', 'بیکاری', 'رشد اقتصادی', 'تولید ناخالص داخلی',
-    'انرژی', 'گاز', 'پتروشیمی', 'فدرال رزرو', 'اوپک'
+    'انرژی', 'گاز', 'پتروشیمی', 'فدرال رزرو', 'اوپک', 'یورو',
+    'پوند', 'ین', 'یوان', 'شاخص', 'بازار سرمایه', 'بازار مالی',
+    'حواله', 'مبادله', 'صرافی', 'ذخایر ارزی', 'ترازنامه',
+    'سیاست پولی', 'سیاست مالی', 'کسری بودجه', 'بدهی',
 ]
 
-RUSSIAN_KEYWORDS = [
-    'золото', 'доллар', 'нефть', 'рубль', 'инфляция', 'ставка', 'фрс',
-    'центральный банк', 'санкции', 'ввп', 'безработица', 'доходность',
-    'опек', 'энергетический кризис', 'газ', 'биржа', 'валюта', 'центробанк',
-    'процентная ставка', 'фондовый рынок'
-]
-
-# Negative keywords to filter out non-economic news (English + Persian)
-NEGATIVE_KEYWORDS_EN = [
-    'film', 'movie', 'festival', 'sports', 'olympic', 'entertainment',
-    'celebrity', 'cricket', 'football', 'basketball', 'tennis',
-    'fashion', 'music', 'art', 'culture', 'travel', 'food', 'recipe',
-    'weather', 'earthquake', 'hurricane', 'tornado', 'flood', 'wildfire',
-    'police', 'crime', 'murder', 'robbery', 'accident', 'fire',
-    'school', 'university', 'student', 'teacher', 'charity', 'donation',
-    'festival', 'award', 'red carpet'
-]
-
-NEGATIVE_KEYWORDS_FA = [
-    'فیلم', 'سینما', 'ورزش', 'بازی', 'دانش‌آموز', 'لوازم‌التحریر', 'همدان',
-    'آمازون', 'هواپیما', 'بویینگ', 'سقوط', 'آتش‌سوزی', 'زلزله', 'سیل',
-    'پلیس', 'جنایی', 'قتل', 'تصادف', 'خیریه', 'جشنواره', 'موسیقی',
-    'تئاتر', 'نمایشگاه', 'کتاب', 'مدرسه', 'دانشگاه', 'هنرمند', 'فرهنگی',
-    'چهره ماندگار', 'ادبیات', 'فیلم', 'سریال', 'کنسرت', 'ورزشگاه',
-    'تیم ملی', 'جام جهانی', 'المپیک', 'بازیگر', 'کارگردان', 'خواننده'
-]
-
-IMPORTANT_COUNTRIES = [
-    'united states', 'us', 'usa', 'china', 'japan', 'germany', 'france',
-    'uk', 'united kingdom', 'britain', 'italy', 'canada', 'australia',
-    'south korea', 'russia', 'india', 'brazil', 'mexico', 'indonesia',
-    'turkey', 'saudi arabia', 'uae', 'iran', 'israel', 'south africa',
-    'europe', 'eurozone', 'european union', 'eu'
-]
-
-BULLISH = ['rate cut', 'weak dollar', 'geopolitical tension', 'recession',
-           'inflation', 'safe haven', 'central bank buying', 'stimulus',
-           'dovish', 'crisis', 'war']
-BEARISH = ['rate hike', 'strong dollar', 'risk appetite', 'higher yields',
-           'hawkish', 'economic growth', 'optimism', 'risk-on', 'tightening']
-
-OIL_BULLISH = [
-    'opec cut', 'oil supply', 'crude inventory draw', 'geopolitical risk',
-    'middle east', 'sanctions', 'supply disruption', 'oil production cut',
-    'drone attack', 'pipeline', 'war', 'embargo', 'energy crisis',
-    'brent', 'wti', 'oil reserve', 'crude oil', 'petroleum'
-]
-OIL_BEARISH = [
-    'opec increase', 'oil demand', 'recession', 'slowdown', 'supply glut',
-    'inventory build', 'demand destruction', 'covid', 'economic weakness',
-    'higher interest rates', 'strong dollar', 'risk-off', 'oil price drop',
-    'lower oil demand', 'ev sales', 'alternative energy'
-]
-
-# ================= GEOGRAPHIC NAMES =================
+# Geographic names dictionary
 GEO_NAMES = {
+    # Countries
     'United States': 'ایالات متحده', 'USA': 'ایالات متحده', 'US': 'ایالات متحده',
     'America': 'آمریکا', 'China': 'چین', 'Japan': 'ژاپن', 'Germany': 'آلمان',
     'France': 'فرانسه', 'United Kingdom': 'بریتانیا', 'UK': 'بریتانیا',
-    'Britain': 'بریتانیا', 'Italy': 'ایتالیا', 'Canada': 'کانادا',
-    'Australia': 'استرالیا', 'South Korea': 'کره جنوبی', 'Russia': 'روسیه',
-    'India': 'هند', 'Brazil': 'برزیل', 'Mexico': 'مکزیک', 'Indonesia': 'اندونزی',
-    'Turkey': 'ترکیه', 'Saudi Arabia': 'عربستان سعودی', 'UAE': 'امارات متحده عربی',
+    'Britain': 'بریتانیا', 'England': 'انگلستان', 'Italy': 'ایتالیا',
+    'Canada': 'کانادا', 'Australia': 'استرالیا', 'South Korea': 'کره جنوبی',
+    'North Korea': 'کره شمالی', 'Russia': 'روسیه', 'India': 'هند',
+    'Brazil': 'برزیل', 'Mexico': 'مکزیک', 'Indonesia': 'اندونزی',
+    'Turkey': 'ترکیه', 'Saudi Arabia': 'عربستان سعودی', 'UAE': 'امارات',
     'Iran': 'ایران', 'Israel': 'اسرائیل', 'South Africa': 'آفریقای جنوبی',
     'Europe': 'اروپا', 'Eurozone': 'منطقه یورو', 'European Union': 'اتحادیه اروپا',
-    'Saxony-Anhalt': 'زاکسن-آنهالت', 'Saxony': 'زاکسن', 'Anhalt': 'آنهالت',
-    'Deauville': 'دوویل', 'Deauville Film Festival': 'جشنواره فیلم دوویل',
-    'Kyiv': 'کی‌یف', 'Kiev': 'کی‌یف', 'Moscow': 'مسکو', 'Washington': 'واشنگتن',
-    'London': 'لندن', 'Paris': 'پاریس', 'Berlin': 'برلین', 'Beijing': 'پکن',
-    'Tokyo': 'توکیو', 'Brussels': 'بروکسل', 'Ankara': 'آنکارا', 'Riyadh': 'ریاض',
-    'Tehran': 'تهران', 'Baghdad': 'بغداد', 'Damascus': 'دمشق', 'Beirut': 'بیروت',
-    'Jerusalem': 'اورشلیم', 'Amman': 'امان', 'Cairo': 'قاهره', 'Doha': 'دوحه',
-    'Abu Dhabi': 'ابوظبی', 'Dubai': 'دبی', 'Manama': 'منامه', 'Muscat': 'مسقط',
-    'Kuwait City': 'کویت', 'Sanaa': 'صنعا', 'Khartoum': 'خارطوم', 'Tripoli': 'طرابلس',
-    'Algiers': 'الجزیره', 'Tunis': 'تونس', 'Rabat': 'رباط', 'Casablanca': 'کازابلانکا',
-    'Ottawa': 'اتاوا', 'Washington D.C.': 'واشنگتن دی‌سی', 'New York': 'نیویورک',
-    'Los Angeles': 'لس آنجلس', 'Chicago': 'شیکاگو', 'Houston': 'هیوستون',
-    'San Francisco': 'سانفرانسیسکو', 'Seattle': 'سیاتل', 'Miami': 'میامی',
+    'EU': 'اتحادیه اروپا', 'Ukraine': 'اوکراین', 'Iraq': 'عراق',
+    'Syria': 'سوریه', 'Lebanon': 'لبنان', 'Yemen': 'یمن',
+    'Qatar': 'قطر', 'Kuwait': 'کویت', 'Oman': 'عمان',
+    'Bahrain': 'بحرین', 'Egypt': 'مصر', 'Libya': 'لیبی',
+    'Nigeria': 'نیجریه', 'Venezuela': 'ونزوئلا', 'Argentina': 'آرژانتین',
+    'Netherlands': 'هلند', 'Belgium': 'بلژیک', 'Switzerland': 'سوئیس',
+    'Sweden': 'سوئد', 'Norway': 'نروژ', 'Denmark': 'دانمارک',
+    'Finland': 'فنلاند', 'Poland': 'لهستان', 'Spain': 'اسپانیا',
+    'Portugal': 'پرتغال', 'Greece': 'یونان', 'Austria': 'اتریش',
+    'Czech Republic': 'جمهوری چک', 'Hungary': 'مجارستان',
+    'Romania': 'رومانی', 'Bulgaria': 'بلغارستان', 'Thailand': 'تایلند',
+    'Vietnam': 'ویتنام', 'Malaysia': 'مالزی', 'Philippines': 'فیلیپین',
+    'Singapore': 'سنگاپور', 'Pakistan': 'پاکستان', 'Afghanistan': 'افغانستان',
+    'Bangladesh': 'بنگلادش', 'Sri Lanka': 'سری‌لانکا', 'Myanmar': 'میانمار',
+    'Kazakhstan': 'قزاقستان', 'Uzbekistan': 'ازبکستان', 'Azerbaijan': 'آذربایجان',
+    'Armenia': 'ارمنستان', 'Georgia': 'گرجستان', 'Belarus': 'بلاروس',
+    
+    # Cities
+    'Washington': 'واشنگتن', 'Washington D.C.': 'واشنگتن', 'London': 'لندن',
+    'Paris': 'پاریس', 'Berlin': 'برلین', 'Beijing': 'پکن', 'Tokyo': 'توکیو',
+    'Moscow': 'مسکو', 'Kyiv': 'کی‌یف', 'Kiev': 'کی‌یف',
+    'Brussels': 'بروکسل', 'Tehran': 'تهران', 'Dubai': 'دبی',
+    'Riyadh': 'ریاض', 'Ankara': 'آنکارا', 'Istanbul': 'استانبول',
+    'New York': 'نیویورک', 'Wall Street': 'وال‌استریت',
+    'Frankfurt': 'فرانکفورت', 'Zurich': 'زوریخ', 'Geneva': 'ژنو',
+    'Amsterdam': 'آمستردام', 'Milan': 'میلان', 'Madrid': 'مادرید',
+    'Rome': 'رم', 'Lisbon': 'لیسبون', 'Vienna': 'وین',
+    'Stockholm': 'استکهلم', 'Oslo': 'اسلو', 'Copenhagen': 'کپنهاگ',
+    'Helsinki': 'هلسینکی', 'Warsaw': 'ورشو', 'Prague': 'پراگ',
+    'Budapest': 'بوداپست', 'Athens': 'آتن', 'Seoul': 'سئول',
+    'Hong Kong': 'هنگ‌کنگ', 'Shanghai': 'شانگهای', 'Shenzhen': 'شنژن',
+    'Singapore': 'سنگاپور', 'Bangkok': 'بانکوک', 'Jakarta': 'جاکارتا',
+    'Manila': 'مانیل', 'Mumbai': 'بمبئی', 'New Delhi': 'دهلی نو',
+    'Karachi': 'کراچی', 'Lahore': 'لاهور', 'Dhaka': 'داکا',
+    'Cairo': 'قاهره', 'Casablanca': 'کازابلانکا', 'Lagos': 'لاگوس',
+    'Johannesburg': 'ژوهانسبورگ', 'Cape Town': 'کیپ‌تاون',
+    'São Paulo': 'سائوپائولو', 'Rio de Janeiro': 'ریودوژانیرو',
+    'Buenos Aires': 'بوئنوس‌آیرس', 'Santiago': 'سانتیاگو',
+    'Bogotá': 'بوگوتا', 'Lima': 'لیما', 'Caracas': 'کاراکاس',
     'Toronto': 'تورنتو', 'Vancouver': 'ونکوور', 'Montreal': 'مونترال',
-    'Sydney': 'سیدنی', 'Melbourne': 'ملبورن', 'Perth': 'پرت', 'Auckland': 'اوکلند',
-    'Wellington': 'ولینگتون', 'Seoul': 'سئول', 'Busan': 'بوسان', 'Pyongyang': 'پیونگ‌یانگ',
-    'Hanoi': 'هانوی', 'Ho Chi Minh City': 'هوشی‌مین', 'Bangkok': 'بانکوک',
-    'Jakarta': 'جاکارتا', 'Manila': 'مانیل', 'Kuala Lumpur': 'کوالالامپور',
-    'Singapore': 'سنگاپور', 'New Delhi': 'دهلی نو', 'Mumbai': 'بمبئی',
-    'Islamabad': 'اسلام‌آباد', 'Kabul': 'کابل', 'Tashkent': 'تاشکند',
-    'Astana': 'آستانه', 'Baku': 'باکو', 'Yerevan': 'ایروان', 'Tbilisi': 'تفلیس',
-    'Ankara': 'آنکارا', 'Istanbul': 'استانبول', 'Athens': 'آتن', 'Rome': 'رم',
-    'Madrid': 'مادرید', 'Lisbon': 'لیسبون', 'Vienna': 'وین', 'Prague': 'پراگ',
-    'Warsaw': 'ورشو', 'Budapest': 'بوداپست', 'Bucharest': 'بخارست', 'Sofia': 'صوفیه',
-    'Belgrade': 'بلگراد', 'Zagreb': 'زاگرب', 'Ljubljana': 'لیوبلیانا',
-    'Sarajevo': 'سارایوو', 'Skopje': 'اسکوپیه', 'Tirana': 'تیرانا',
-    'Pristina': 'پریشتینا', 'Podgorica': 'پودگوریتسا', 'Riga': 'ریگا',
-    'Vilnius': 'ویلنیوس', 'Tallinn': 'تالین', 'Helsinki': 'هلسینکی',
-    'Oslo': 'اسلو', 'Stockholm': 'استکهلم', 'Copenhagen': 'کپنهاگ',
-    'Reykjavik': 'ریکیاویک', 'Dublin': 'دوبلین', 'Edinburgh': 'ادینبورگ',
-    'Cardiff': 'کاردیف', 'Belfast': 'بلفاست', 'Amsterdam': 'آمستردام',
-    'Rotterdam': 'روتردام', 'Geneva': 'ژنو', 'Zurich': 'زوریخ',
-    'Brussels': 'بروکسل', 'Luxembourg': 'لوکزامبورگ', 'Monaco': 'موناکو',
-    'Andorra': 'آندورا', 'Liechtenstein': 'لیختن‌اشتاین', 'San Marino': 'سن مارینو',
-    'Vatican': 'واتیکان', 'Malta': 'مالت', 'Cyprus': 'قبرس',
-}
-
-# ================= GLOSSARIES =================
-# (Economical glossary, Iran respect, etc. remain as before – copied here for completeness)
-ECONOMIC_GLOSSARY = {
-    'Gold': 'طلا', 'Spot Gold': 'طلا نقدی', 'Gold Bar': 'شمش طلا',
-    'Gold Bullion': 'طلای آبشده', 'Gold Coin': 'سکه طلا',
-    'Gold Futures': 'قرارداد آتی طلا', 'Gold Reserve': 'ذخایر طلای بانک مرکزی',
-    'Gold Standard': 'استاندارد طلا', 'Gold ETF': 'صندوق قابل معامله طلا',
-    'Precious Metals': 'فلزات گرانبها', 'Silver': 'نقره', 'Platinum': 'پلاتین',
-    'Palladium': 'پالادیوم', 'Bullion': 'آبشده / شمش',
-    'Safe Haven Asset': 'دارایی امن / پناهگاه امن', 'Inflation Hedge': 'پوشش تورمی',
-    'Gold-to-Oil Ratio': 'نسبت طلا به نفت', 'Karat': 'عیار',
-    '24 Karat Gold': 'طلای ۲۴ عیار', '18 Karat Gold': 'طلای ۱۸ عیار',
-    'Mesghal': 'مثقال', 'Gold Assay': 'آزمون عیار طلا',
-    'Central Bank Gold Purchases': 'خرید طلا توسط بانک مرکزی',
-    'Gold Price Forecast': 'پیش‌بینی قیمت طلا', 'Gold Mining': 'استخراج طلا',
-    'Gold Refinery': 'پالایشگاه طلا', 'Goldsmith': 'طلاساز',
-    'Bull Market (Gold)': 'بازار صعودی طلا', 'Bear Market (Gold)': 'بازار نزولی طلا',
-    'Gold Rally': 'جهش قیمت طلا', 'Currency': 'ارز / پول',
-    'US Dollar': 'دلار آمریکا', 'USD': 'دلار آمریکا', 'Euro': 'یورو',
-    'EUR': 'یورو', 'British Pound': 'پوند استرلینگ', 'GBP': 'پوند انگلیس',
-    'Japanese Yen': 'ین ژاپن', 'JPY': 'ین ژاپن', 'Swiss Franc': 'فرانک سوئیس',
-    'CHF': 'فرانک سوئیس', 'Chinese Yuan': 'یوان چین', 'CNY': 'یوان چین',
-    'Russian Ruble': 'روبل روسیه', 'RUB': 'روبل روسیه', 'Iranian Rial': 'ریال ایران',
-    'IRR': 'ریال ایران', 'Iranian Toman': 'تومان', 'UAE Dirham': 'درهم امارات',
-    'AED': 'درهم امارات', 'Turkish Lira': 'لیر ترکیه', 'TRY': 'لیر ترکیه',
-    'Indian Rupee': 'روپیه هند', 'INR': 'روپیه هند',
-    'Exchange Rate': 'نرخ ارز / نرخ برابری', 'Floating Exchange Rate': 'نرخ ارز شناور',
-    'Fixed Exchange Rate': 'نرخ ارز ثابت', 'Currency Devaluation': 'کاهش ارزش پول',
-    'Currency Appreciation': 'افزایش ارزش ارز', 'Currency Depreciation': 'کاهش ارزش ارز',
-    'Dollar Index': 'شاخص دلار', 'DXY': 'شاخص دلار', 'Dollar Strength': 'قدرت دلار',
-    'Dollar Weakness': 'ضعف دلار', 'Currency Pair': 'جفت ارز',
-    'Major Currency Pair': 'جفت ارز اصلی', 'Cross Currency Pair': 'جفت ارز متقاطع',
-    'Pip': 'پیپ', 'Spread': 'اسپرد', 'Leverage': 'اهرم / لوریج',
-    'Margin': 'مارجین / وجه تضمین', 'Lot': 'لات', 'Bid Price': 'قیمت خرید',
-    'Ask Price': 'قیمت فروش', 'Buy Order': 'سفارش خرید', 'Sell Order': 'سفارش فروش',
-    'Long Position': 'موقعیت خرید / پوزیشن لانگ', 'Short Position': 'موقعیت فروش / پوزیشن شورت',
-    'Stop Loss': 'حد ضرر', 'Take Profit': 'حد سود', 'Currency Reserve': 'ذخایر ارزی',
-    'Foreign Exchange': 'ارز خارجی', 'Central Bank Intervention': 'مداخله بانک مرکزی',
-    'Currency Crisis': 'بحران ارزی', 'Capital Flight': 'فرار سرمایه',
-    'Currency Swap': 'مبادله ارز', 'Forward Contract': 'قرارداد آتی ارز',
-    'Hedging': 'پوشش ریسک / هجینگ', 'Carry Trade': 'معامله حمل / کری ترید',
-    'Crude Oil': 'نفت خام', 'Brent Crude': 'نفت برنت', 'WTI Crude': 'نفت وست تگزاس اینترمیدیت',
-    'OPEC': 'اوپک', 'OPEC+': 'اوپک پلاس', 'Oil Production': 'تولید نفت',
-    'Oil Export': 'صادرات نفت', 'Oil Import': 'واردات نفت',
-    'Oil Refinery': 'پالایشگاه نفت', 'Oil Reserve': 'ذخایر نفت',
-    'Strategic Petroleum Reserve': 'ذخایر راهبردی نفت', 'Oil Price': 'قیمت نفت',
-    'Oil Barrel': 'بشکه نفت', 'Barrels Per Day': 'بشکه در روز', 'BPD': 'بشکه در روز',
-    'Oil Field': 'میدان نفتی', 'Oil Pipeline': 'خط لوله نفت', 'Oil Tanker': 'نفتکش',
-    'Oil Embargo': 'تحریم نفتی', 'Oil Sanctions': 'تحریم‌های نفتی',
-    'Energy Market': 'بازار انرژی', 'Energy Security': 'امنیت انرژی',
-    'Natural Gas': 'گاز طبیعی', 'LNG': 'گاز مایع شده',
-    'Liquefied Natural Gas': 'گاز مایع شده', 'Gasoline': 'بنزین',
-    'Diesel': 'گازوئیل / دیزل', 'Petrochemical': 'پتروشیمی',
-    'Petrodollar': 'پترو دلار', 'Shale Oil': 'نفت شیل', 'Fracking': 'شکست هیدرولیکی',
-    'Oil Cartel': 'کارتل نفت', 'Crude Oil Inventory': 'موجودی نفت خام',
-    'Oil Price Shock': 'شوک قیمت نفت', 'Energy Crisis': 'بحران انرژی',
-    'Oil Benchmark': 'معیار قیمت نفت', 'Oil Futures': 'قرارداد آتی نفت',
-    'Oil Spot Price': 'قیمت نقدی نفت', 'Oil Price Volatility': 'نوسان قیمت نفت',
-    'Petroleum Products': 'فرآورده‌های نفتی', 'Oil Field Services': 'خدمات میدان نفتی',
-    'Central Bank': 'بانک مرکزی', 'Federal Reserve': 'فدرال رزرو', 'Fed': 'فدرال رزرو',
-    'Federal Reserve System': 'سیستم فدرال رزرو', 'FOMC': 'کمیته بازار باز فدرال',
-    'Federal Open Market Committee': 'کمیته بازار باز فدرال',
+    'Sydney': 'سیدنی', 'Melbourne': 'ملبورن', 'Brisbane': 'بریزبن',
+    'Perth': 'پرت', 'Auckland': 'اوکلند',
+    
+    # German states
+    'Saxony-Anhalt': 'زاکسن-آنهالت', 'Saxony': 'زاکسن', 'Anhalt': 'آنهالت',
+    'Bavaria': 'بایرن', 'Brandenburg': 'براندنبورگ',
+    'Baden-Württemberg': 'بادن-وورتمبرگ', 'North Rhine-Westphalia': 'نوردراین-وستفالن',
+    'Hesse': 'هسن', 'Lower Saxony': 'نیدرزاکسن',
+    
+    # Institutions
+    'Federal Reserve': 'فدرال رزرو', 'Fed': 'فدرال رزرو',
     'European Central Bank': 'بانک مرکزی اروپا', 'ECB': 'بانک مرکزی اروپا',
-    'Bank of England': 'بانک مرکزی انگلستان', 'BoE': 'بانک مرکزی انگلیس',
+    'Bank of England': 'بانک مرکزی انگلستان', 'BoE': 'بانک مرکزی انگلستان',
     'Bank of Japan': 'بانک مرکزی ژاپن', 'BoJ': 'بانک مرکزی ژاپن',
     "People's Bank of China": 'بانک مرکزی چین', 'PBoC': 'بانک مرکزی چین',
-    'Central Bank of Iran': 'بانک مرکزی جمهوری اسلامی ایران',
-    'CBI': 'بانک مرکزی جمهوری اسلامی ایران', 'Monetary Policy': 'سیاست پولی',
-    'Expansionary Monetary Policy': 'سیاست پولی انبساطی',
-    'Contractionary Monetary Policy': 'سیاست پولی انقباضی',
-    'Interest Rate': 'نرخ بهره', 'Policy Rate': 'نرخ سیاستی',
-    'Federal Funds Rate': 'نرخ بهره فدرال', 'Base Rate': 'نرخ پایه',
-    'Benchmark Rate': 'نرخ مرجع', 'Interest Rate Hike': 'افزایش نرخ بهره',
-    'Interest Rate Cut': 'کاهش نرخ بهره', 'Rate Decision': 'تصمیم نرخ بهره',
-    'Hawkish': 'انقباضی / هاوکیش', 'Dovish': 'انبساطی / داویش',
-    'Quantitative Easing': 'تسهیل کمّی', 'QE': 'تسهیل کمّی',
-    'Quantitative Tightening': 'تنگ کردن کمّی', 'QT': 'تنگ کردن کمّی',
-    'Tapering': 'کاهش تدریجی خرید اوراق', 'Open Market Operations': 'عملیات بازار باز',
-    'Reserve Requirement': 'نسبت ذخیره قانونی', 'Discount Rate': 'نرخ تنزیل',
-    'Forward Guidance': 'راهنمایی پیش‌رو', 'Money Supply': 'حجم پول / نقدینگی',
-    'Monetary Base': 'پایه پولی', 'Inflation Targeting': 'هدف‌گذاری تورم',
-    'Central Bank Independence': 'استقلال بانک مرکزی', 'Central Bank Speech': 'سخنرانی بانک مرکزی',
-    'Central Bank Meeting': 'نشست بانک مرکزی', 'Minutes of Meeting': 'صورتجلسه',
-    'Central Bank Balance Sheet': 'ترازنامه بانک مرکزی', 'Bank Stress Test': 'آزمون استرس بانکی',
-    'Banking Supervision': 'نظارت بانکی', 'Emergency Liquidity': 'نقدینگی اضطراری',
-    'Currency Intervention': 'مداخله ارزی', 'Gross Domestic Product': 'تولید ناخالص داخلی',
-    'GDP': 'تولید ناخالص داخلی', 'Nominal GDP': 'تولید ناخالص داخلی اسمی',
-    'Real GDP': 'تولید ناخالص داخلی واقعی', 'GDP Growth Rate': 'نرخ رشد اقتصادی',
-    'GDP Per Capita': 'تولید ناخالص داخلی سرانه', 'GNP': 'تولید ناخالص ملی',
-    'Inflation': 'تورم', 'Inflation Rate': 'نرخ تورم', 'Hyperinflation': 'تورم لگام‌گسیخته',
-    'Deflation': 'تورم منفی / دیفلیشن', 'Disinflation': 'کاهش تورم',
-    'Core Inflation': 'تورم هسته', 'Consumer Price Index': 'شاخص قیمت مصرف‌کننده',
-    'CPI': 'شاخص قیمت مصرف‌کننده', 'Producer Price Index': 'شاخص قیمت تولیدکننده',
-    'PPI': 'شاخص قیمت تولیدکننده', 'Personal Consumption Expenditures': 'هزینه‌های مصرف شخصی',
-    'PCE': 'هزینه‌های مصرف شخصی', 'Core PCE': 'شاخص PCE هسته',
-    'Inflation Expectations': 'انتظارات تورمی', 'Unemployment Rate': 'نرخ بیکاری',
-    'Nonfarm Payrolls': 'اشتغال غیرکشاورزی', 'NFP': 'آمار اشتغال غیرکشاورزی',
-    'Jobless Claims': 'ادعاهای بیمه بیکاری', 'Labor Force': 'نیروی کار',
-    'Labor Force Participation Rate': 'نرخ مشارکت نیروی کار',
-    'Employment Report': 'گزارش اشتغال', 'Job Creation': 'ایجاد شغل',
-    'Unemployment Claims': 'مدعیان بیکاری', 'Recession': 'رکود اقتصادی',
-    'Economic Recession': 'رکود اقتصادی', 'Stagflation': 'رکود تورمی',
-    'Depression': 'رکود عمیق', 'Economic Growth': 'رشد اقتصادی',
-    'Economic Contraction': 'انقباض اقتصادی', 'Economic Expansion': 'انبساط اقتصادی',
-    'Business Cycle': 'چرخه تجاری', 'Economic Indicator': 'شاخص اقتصادی',
-    'Leading Indicator': 'شاخص پیشرو', 'Lagging Indicator': 'شاخص پسرو',
-    'PMI': 'شاخص مدیران خرید', 'Purchasing Managers Index': 'شاخص مدیران خرید',
-    'Manufacturing PMI': 'شاخص مدیران خرید صنعت', 'Services PMI': 'شاخص مدیران خرید خدمات',
-    'ISM Index': 'شاخص ISM', 'ISM': 'آی‌اس‌ام',
-    'Consumer Confidence': 'اعتماد مصرف‌کننده', 'Consumer Sentiment': 'احساسات مصرف‌کننده',
-    'Retail Sales': 'فروش خرده‌فروشی', 'Industrial Production': 'تولید صنعتی',
-    'Capacity Utilization': 'نرخ استفاده از ظرفیت', 'Durable Goods Orders': 'سفارشات کالاهای بادوام',
-    'Housing Starts': 'شروع ساخت خانه', 'Building Permits': 'مجوزهای ساخت',
-    'Existing Home Sales': 'فروش خانه‌های موجود', 'New Home Sales': 'فروش خانه‌های جدید',
-    'Trade Balance': 'تراز تجاری', 'Trade Deficit': 'کسری تجاری',
-    'Trade Surplus': 'مازاد تجاری', 'Current Account': 'حساب جاری',
-    'Current Account Deficit': 'کسری حساب جاری', 'Capital Account': 'حساب سرمایه',
-    'Budget Deficit': 'کسری بودجه', 'Budget Surplus': 'مازاد بودجه',
-    'Fiscal Policy': 'سیاست مالی', 'Government Debt': 'بدهی دولت',
-    'Public Debt': 'بدهی عمومی', 'National Debt': 'بدهی ملی',
-    'Debt-to-GDP Ratio': 'نسبت بدهی به تولید ناخالص داخلی', 'Fiscal Stimulus': 'محرک مالی',
-    'Austerity': 'ریاضت اقتصادی', 'Stock Market': 'بازار سهام / بورس',
-    'Bull Market': 'بازار صعودی / بازار گاوی', 'Bear Market': 'بازار نزولی / بازار خرسی',
-    'Market Rally': 'جهش بازار', 'Market Selloff': 'فروش سنگین / افت بازار',
-    'Market Correction': 'اصلاح بازار', 'Market Crash': 'سقوط بازار',
-    'Market Volatility': 'نوسان بازار', 'Market Sentiment': 'احساسات بازار',
-    'Risk Appetite': 'اشتهای ریسک', 'Risk Aversion': 'گریز از ریسک',
-    'Risk-On': 'افزایش ریسک‌پذیری', 'Risk-Off': 'کاهش ریسک‌پذیری',
-    'Safe Haven': 'پناهگاه امن / دارایی امن', 'Market Liquidity': 'نقدشوندگی بازار',
-    'Trading Volume': 'حجم معاملات', 'Market Capitalization': 'ارزش بازار',
-    'P/E Ratio': 'نسبت قیمت به سود', 'Earnings Per Share': 'سود هر سهم',
-    'EPS': 'سود هر سهم', 'Dividend': 'سود تقسیمی', 'Stock Index': 'شاخص سهام',
-    'S&P 500': 'شاخص اس اند پی ۵۰۰', 'Dow Jones': 'داو جونز', 'NASDAQ': 'نزدک',
-    'FTSE 100': 'فوتسی ۱۰۰', 'DAX': 'دکس', 'Nikkei': 'نیکی',
-    'Bond Market': 'بازار اوراق قرضه', 'Government Bond': 'اوراق قرضه دولتی',
-    'Treasury Bond': 'اوراق قرضه خزانه', 'T-Bond': 'اوراق قرضه خزانه',
-    'Treasury Yield': 'بازدهی اوراق خزانه', 'Yield Curve': 'منحنی بازدهی',
-    'Inverted Yield Curve': 'منحنی بازدهی معکوس', 'Credit Rating': 'رتبه اعتباری',
-    'Credit Rating Agency': 'آژانس رتبه‌بندی اعتباری', 'Speculation': 'سفته‌بازی',
-    'Arbitrage': 'آربیتراژ / سوداگری', 'Market Maker': 'بازارساز',
-    'Day Trading': 'معامله روزانه', 'Swing Trading': 'معامله موجی',
-    'Position Trading': 'معامله موقعیتی', 'Technical Analysis': 'تحلیل تکنیکال',
-    'Fundamental Analysis': 'تحلیل بنیادی', 'Support Level': 'سطح حمایت',
-    'Resistance Level': 'سطح مقاومت', 'Breakout': 'شکست', 'Trend': 'روند',
-    'Uptrend': 'روند صعودی', 'Downtrend': 'روند نزولی', 'Sideways Trend': 'روند خنثی',
-    'Market Depth': 'عمق بازار', 'Order Book': 'دفتر سفارش',
-    'Liquidity Crisis': 'بحران نقدینگی', 'Margin Call': 'درخواست افزایش وجه تضمین',
-    'Short Squeeze': 'فشار خرید / مچاله شدن شورت‌ها', 'Market Manipulation': 'دستکاری بازار',
-    'Insider Trading': 'معامله بر مبنای اطلاعات نهانی', 'Sanctions': 'تحریم‌ها',
-    'Economic Sanctions': 'تحریم‌های اقتصادی', 'Trade War': 'جنگ تجاری',
-    'Trade Tension': 'تنش تجاری', 'Tariff': 'تعرفه / عوارض گمرکی',
-    'Import Tariff': 'تعرفه واردات', 'Export Tariff': 'تعرفه صادرات',
-    'Trade Barrier': 'مانع تجاری', 'Protectionism': 'حمایت‌گرایی',
-    'Free Trade': 'تجارت آزاد', 'Trade Agreement': 'توافق تجاری',
-    'Geopolitical Tension': 'تنش ژئوپلیتیکی', 'Geopolitical Risk': 'ریسک ژئوپلیتیکی',
-    'Political Crisis': 'بحران سیاسی', 'War': 'جنگ', 'Armed Conflict': 'درگیری مسلحانه',
-    'Military Conflict': 'درگیری نظامی', 'Election': 'انتخابات',
-    'Government Shutdown': 'تعطیلی دولت', 'Political Instability': 'بی‌ثباتی سیاسی',
-    'Economic Warfare': 'جنگ اقتصادی', 'Currency War': 'جنگ ارزی',
-    'Capital Controls': 'کنترل سرمایه', 'Brain Drain': 'مهاجرت نخبگان / فرار مغزها',
-    'Economic Blockade': 'محاصره اقتصادی', 'Embargo': 'تحریم / امبارگو',
-    'International Sanctions': 'تحریم‌های بین‌المللی', 'UN Sanctions': 'تحریم‌های سازمان ملل',
-    'Multilateral Sanctions': 'تحریم‌های چندجانبه', 'Unilateral Sanctions': 'تحریم‌های یک‌جانبه',
-    'Sanctions Evasion': 'دور زدن تحریم‌ها', 'Sanctions Relief': 'رفع تحریم‌ها',
-    'Supply Chain Disruption': 'اختلال در زنجیره تأمین', 'Strategic Commodity': 'کالای راهبردی',
-    'National Security': 'امنیت ملی', 'Sovereign Risk': 'ریسک حاکمیتی',
-    'Country Risk': 'ریسک کشور', 'Political Risk': 'ریسک سیاسی',
-    'Diplomatic Crisis': 'بحران دیپلماتیک', 'Regional Conflict': 'درگیری منطقه‌ای',
-    'Food Security': 'امنیت غذایی', 'Commercial Bank': 'بانک تجاری',
-    'Investment Bank': 'بانک سرمایه‌گذاری', 'Development Bank': 'بانک توسعه',
-    'Islamic Banking': 'بانکداری اسلامی', 'Bank Deposit': 'سپرده بانکی',
-    'Bank Loan': 'وام بانکی', 'Bank Credit': 'اعتبار بانکی', 'Bank Reserve': 'ذخایر بانکی',
-    'Bank Profit': 'سود بانکی', 'Bank Interest': 'بهره بانکی',
-    'Islamic Bank': 'بانک اسلامی', 'Interest-Free Banking': 'بانکداری بدون بهره',
-    'Bank Run': 'هجوم به بانک', 'Bank Failure': 'ورشکستگی بانک',
-    'Bank Nationalization': 'ملی شدن بانک', 'International Monetary Fund': 'صندوق بین‌المللی پول',
-    'IMF': 'صندوق بین‌المللی پول', 'World Bank': 'بانک جهانی', 'WB': 'بانک جهانی',
-    'Bank for International Settlements': 'بانک تسویه بین‌المللی', 'BIS': 'بانک تسویه بین‌المللی',
-    'Investment': 'سرمایه‌گذاری', 'Return on Investment': 'نرخ بازگشت سرمایه',
-    'ROI': 'نرخ بازگشت سرمایه', 'Diversification': 'متنوع‌سازی پرتفوی',
-    'Portfolio': 'پرتفوی / سبد سرمایه‌گذاری', 'Asset Allocation': 'تخصیص دارایی',
-    'Risk Management': 'مدیریت ریسک', 'Capital Gain': 'سود سرمایه',
-    'Capital Loss': 'زیان سرمایه', 'Mutual Fund': 'صندوق سرمایه‌گذاری مشترک',
-    'Exchange-Traded Fund': 'صندوق قابل معامله در بورس', 'ETF': 'صندوق قابل معامله',
-    'Hedge Fund': 'صندوق پوشش ریسک', 'Sovereign Wealth Fund': 'صندوق ثروت حاکمیتی',
-    'Private Equity': 'سرمایه‌گذاری خصوصی', 'Venture Capital': 'سرمایه‌گذاری خطرپذیر',
-    'Foreign Direct Investment': 'سرمایه‌گذاری مستقیم خارجی', 'FDI': 'سرمایه‌گذاری مستقیم خارجی',
-    'Cash Flow': 'جریان نقدی', 'Balance Sheet': 'ترازنامه', 'Income Statement': 'صورت سود و زیان',
-    'Market Value': 'ارزش بازار', 'Book Value': 'ارزش دفتری', 'Intrinsic Value': 'ارزش ذاتی',
-    'Bubble': 'حباب اقتصادی', 'Financial Crisis': 'بحران مالی',
-    'Credit Crunch': 'تنگنای اعتباری', 'Liquidity Trap': 'تله نقدینگی',
-    'Debt Ceiling': 'سقف بدهی', 'Default': 'نکول / توقف پرداخت',
-    'Bankruptcy': 'ورشکستگی', 'Restructuring': 'بازسازی / تجدید ساختار',
-    'Bailout': 'نجات مالی / بیل‌اوت', 'Stimulus Package': 'بسته محرک',
-    'Fiscal Deficit': 'کسری مالی', 'Public Spending': 'هزینه‌کرد عمومی',
-    'Government Revenue': 'درآمد دولت', 'Tax Revenue': 'درآمد مالیاتی',
-    'Tax Cut': 'کاهش مالیات', 'Tax Increase': 'افزایش مالیات',
-    'Progressive Tax': 'مالیات تصاعدی', 'Flat Tax': 'مالیات ثابت',
-    'Capital Gains Tax': 'مالیات سود سرمایه', 'AI': 'هوش مصنوعی',
-    'FX': 'بازار ارز', 'SMA': 'میانگین متحرک ساده', 'EMA': 'میانگین متحرک نمایی',
-    'MACD': 'مکدی', 'RSI': 'شاخص قدرت نسبی', 'RSS': 'فید خبری',
-    'JPMorgan': 'جی‌پی مورگان', 'MUFG': 'ام‌یواف‌جی', 'BNY': 'بی‌ان‌وای',
-    'Commerzbank': 'کومرتس‌بانک', 'OilPrice.com': 'اویل‌پرایس', 'Reuters': 'رویترز',
-    'Bloomberg': 'بلومبرگ', 'CNBC': 'سی‌ان‌بی‌سی', 'FT': 'فایننشال تایمز',
-    'WSJ': 'وال‌استریت ژورنال',
-    'BLS': 'اداره آمار کار آمریکا',
-    'OCBC': 'اوسی‌بی‌سی',
-    'Governor': 'رئیس کل',
-    'Central Bank Governor': 'رئیس کل بانک مرکزی',
-    'UST': 'اوراق خزانه آمریکا',
-    'IDR': 'روپیه اندونزی',
-    'USD/CHF': 'دلار آمریکا/فرانک سوئیس',
-    'RBNZ': 'بانک مرکزی نیوزیلند',
-    'RBI': 'بانک مرکزی هند',
+    'IMF': 'صندوق بین‌المللی پول', 'World Bank': 'بانک جهانی',
+    'OPEC': 'اوپک', 'IEA': 'آژانس بین‌المللی انرژی',
+    'White House': 'کاخ سفید', 'Pentagon': 'پنتاگون',
+    'Kremlin': 'کرملین', 'NATO': 'ناتو',
+    'European Commission': 'کمیسیون اروپا',
+    'UN Security Council': 'شورای امنیت سازمان ملل',
+    'WTO': 'سازمان تجارت جهانی',
+    
+    # People (correct Persian transliterations)
+    'Zelensky': 'زلنسکی', 'Zelenskyy': 'زلنسکی', 'Putin': 'پوتین',
+    'Biden': 'بایدن', 'Trump': 'ترامپ', 'Macron': 'ماکرون',
+    'Scholz': 'شولتز', 'Xi Jinping': 'شی جین‌پینگ', 'Merkel': 'مرکل',
+    'Khamenei': 'خامنه‌ای', 'Pezeshkian': 'پزشکیان', 'Araghchi': 'عراقچی',
+    'Lagarde': 'لاگارد', 'Powell': 'پاول', 'Yellen': 'یلن',
+    'Witkoff': 'ویتکوف', 'Kushner': 'کوشنر', 'Netanyahu': 'نتانیاهو',
+    'Erdogan': 'اردوغان', 'MBS': 'بن سلمان', 'Crown Prince': 'ولیعهد',
+    'Lavrov': 'لاوروف', 'Mishustin': 'میخوستین',
+    
+    # Organizations & companies
+    'Gazprom': 'گازپروم', 'Rosneft': 'روسنفت', 'Saudi Aramco': 'آرامکو',
+    'BP': 'بی‌پی', 'Shell': 'شل', 'Chevron': 'شورون',
+    'ExxonMobil': 'اکسان‌موبیل', 'TotalEnergies': 'توتال‌انرژی',
 }
 
-IRAN_RESPECT_GLOSSARY = {
+# Iran respectful terminology
+IRAN_RESPECT = {
     'Iranian regime': 'جمهوری اسلامی ایران',
-    'Iranian Regime': 'جمهوری اسلامی ایران',
-    "Iran's clerical rule": 'نظام جمهوری اسلامی',
-    "Iran's theocracy": 'نظام جمهوری اسلامی',
+    'Iranian government': 'دولت ایران',
     'Iranian theocracy': 'نظام جمهوری اسلامی',
-    "Iran's rulers": 'رهبران جمهوری اسلامی',
-    "Iran's hardliners": 'عناصر محافظه‌کار جمهوری اسلامی',
-    'Mullahs': 'علمای دینی',
-    'Clerics': 'علمای دینی',
     'Supreme Leader': 'رهبر معظم',
-    'Supreme Leader of Iran': 'رهبر معظم جمهوری اسلامی ایران',
-    "Iran's leader": 'رهبر معظم',
     'Ayatollah Khamenei': 'حضرت آیت‌الله خامنه‌ای',
-    'Khamenei': 'حضرت آیت‌الله خامنه‌ای',
-    'Iranian president': 'رئیس‌جمهور محترم ایران',
-    'Pezeshkian': 'دکتر مسعود پزشکیان',
+    'President Pezeshkian': 'رئیس‌جمهور پزشکیان',
     'Masoud Pezeshkian': 'دکتر مسعود پزشکیان',
-    'President Pezeshkian': 'رئیس‌جمهور دکتر مسعود پزشکیان',
-    "Iran's FM": 'وزیر خارجه محترم ایران',
-    'Araghchi': 'سید عباس عراقچی',
+    'Foreign Minister Araghchi': 'وزیر خارجه عراقچی',
     'Abbas Araghchi': 'سید عباس عراقچی',
-    "Iran's foreign minister": 'وزیر خارجه ایران',
-    'Iranian parliament': 'مجلس شورای اسلامی',
-    "Iran's parliament": 'مجلس شورای اسلامی',
-    'Majles': 'مجلس شورای اسلامی',
-    'Guardian Council': 'شورای نگهبان',
-    'Assembly of Experts': 'مجلس خبرگان رهبری',
-    'Expediency Council': 'مجمع تشخیص مصلحت نظام',
-    'Bank Markazi': 'بانک مرکزی جمهوری اسلامی ایران',
-    'National Iranian Oil Company': 'شرکت ملی نفت ایران',
-    'NIOC': 'شرکت ملی نفت ایران',
-    "Iran's oil ministry": 'وزارت نفت جمهوری اسلامی ایران',
-    "Iran's foreign ministry": 'وزارت امور خارجه جمهوری اسلامی ایران',
-    "Iran's finance ministry": 'وزارت امور اقتصادی و دارایی',
     "Iran's nuclear program": 'برنامه هسته‌ای صلح‌آمیز ایران',
     'Iran nuclear deal': 'برنامه جامع اقدام مشترک',
     'JCPOA': 'برنامه جامع اقدام مشترک',
     'Iran sanctions': 'تحریم‌های علیه جمهوری اسلامی ایران',
-    'Iranian nuclear threat': 'فعالیت‌های هسته‌ای ایران',
-    "Iran's proxies": 'شرکای منطقه‌ای ایران',
-    "Iran's malign activities": 'سیاست‌های منطقه‌ای ایران',
+    'Central Bank of Iran': 'بانک مرکزی جمهوری اسلامی ایران',
+    'National Iranian Oil Company': 'شرکت ملی نفت ایران',
+    'NIOC': 'شرکت ملی نفت ایران',
 }
 
-PERSIAN_CORRECTIONS = {
-    'بر بره': 'بر بشکه',
-    'بره ': 'بشکه ',
-    'اواس‌دی': 'دلار آمریکا',
-    'یو‌اس‌دی': 'دلار آمریکا',
-    'جپای': 'ین ژاپن',
-    'جی‌پی‌وی': 'ین ژاپن',
-    'اواس-ژاپن': 'آمریکا-ژاپن',
-    'سکه‌ی ژاپنی': 'ین ژاپن',
-    'داده‌های گرم': 'داده‌های قوی',
-    'موقعیت کوتاه': 'پوزیشن فروش',
-    'موقعیت بلند': 'پوزیشن خرید',
-}
-
-IRAN_SPECIFIC_GLOSSARY = {
-    'سپاه': 'نیروهای سپاه',
-    'سپاه پاسداران': 'نیروهای سپاه پاسداران',
-    'ارتش': 'نیروهای ارتش',
-    'خارگ': 'خارگ',
-    'بندرعباس': 'بندرعباس',
-    'تنگه هرمز': 'تنگه هرمز',
-    'سنتکام': 'سنتکام',
-    'وزارت نفت': 'وزارت نفت',
-    'شرکت ملی نفت': 'شرکت ملی نفت',
-    'بانک مرکزی': 'بانک مرکزی',
-    'مجلس': 'مجلس شورای اسلامی',
-    'دولت': 'دولت',
-    'رئیس‌جمهور': 'رئیس‌جمهور',
-    'رهبر': 'رهبر معظم',
-    'تحریم': 'تحریم',
-    'برجام': 'برنامه جامع اقدام مشترک',
-    'هسته‌ای': 'برنامه هسته‌ای صلح‌آمیز',
-}
-
-COUNTRY_GLOSSARY = {
-    'USA': {
-        'Federal Reserve': 'فدرال رزرو',
-        'FOMC': 'کمیته بازار باز فدرال',
-        'CPI': 'شاخص قیمت مصرف‌کننده',
-        'NFP': 'آمار اشتغال غیرکشاورزی',
-        'GDP': 'تولید ناخالص داخلی',
-        'Treasury': 'وزارت خزانه‌داری',
-        'White House': 'کاخ سفید',
-        'Pentagon': 'پنتاگون',
-    },
-    'UK': {
-        'Bank of England': 'بانک مرکزی انگلستان',
-        'BoE': 'بانک مرکزی انگلستان',
-        'Parliament': 'پارلمان',
-        'Downing Street': 'دفتر نخست‌وزیری',
-    },
-    'Europe': {
-        'ECB': 'بانک مرکزی اروپا',
-        'European Commission': 'کمیسیون اروپا',
-        'Eurozone': 'منطقه یورو',
-    },
-    'Russia': {
-        'Kremlin': 'کرملین',
-        'Gazprom': 'گازپروم',
-        'Rosneft': 'روسنفت',
-        'Central Bank of Russia': 'بانک مرکزی روسیه',
-    },
-    'China': {
-        'PBOC': 'بانک مرکزی چین',
-        'Communist Party': 'حزب کمونیست',
-        'NPC': 'کنگره ملی خلق',
-    },
-    'Japan': {
-        'BOJ': 'بانک مرکزی ژاپن',
-        'Ministry of Finance': 'وزارت دارایی',
-        'Yen': 'ین',
-    }
-}
-
-PERSIAN_NAME_CORRECTIONS = {
-    'جزیره خرج': 'جزیره خارگ',
-    'سلاح‌خیزان سپاه': 'نیروهای سپاه',
-    'سپاه پاسداران': 'نیروهای سپاه پاسداران',
-    'ستاد فرماندهی مرکزی': 'سنتکام',
-}
-
-PROPER_NOUN_CORRECTIONS = {
-    'حزب راستگرای دوردست': 'حزب راستگرای افراطی',
-    'نودیدیا': 'انویدیا',
-    'هاجینگ فیس': 'هاگینگ فیس',
+# Persian grammar corrections (common LLM mistakes)
+GRAMMAR_FIXES = {
+    # Meaningless phrases -> natural Persian
+    'پاسخ ایجاد خواهد کرد': 'پاسخ خواهد داد',
+    'پاسخ ارائه خواهد کرد': 'پاسخ خواهد داد',
+    'خوشحال می‌کند': 'حمایت می‌کند',
+    'خوشحال می‌شود': 'حمایت می‌کند',
+    'قایق را ضبط کرد': 'کشتی را توقیف کرد',
+    'در حال حرکت به سمت تصادف است': 'تصادف کرد',
+    'موفقیت بزرگی را به دست آورد': 'به پیروزی بزرگی دست یافت',
+    'در حال انجام شدن است': 'در حال انجام است',
+    'قابل توجه و عمیق': 'مهم و جدی',
+    'رهبر معظم معظم': 'رهبر معظم',
+    'شورای اسلامی شورای اسلامی': 'شورای اسلامی',
+    'نیروهای نیروهای': 'نیروهای',
+    'مقامات مقامات': 'مقامات',
+    'ارزش از ارزش': 'ارزش',
+    'پاسخ ایجاد': 'پاسخ',
+    
+    # Better Persian equivalents
+    'اعلام شد که': 'اعلام کرد',
+    'گفته می‌شود که': 'گفته شد',
+    'اظهار داشت': 'گفت',
+    'بیان کرد': 'گفت',
+    'تصریح کرد': 'گفت',
+    'اظهارنظر کرد': 'گفت',
+    'وارد حمله شد': 'حمله کرد',
+    'مورد حمله قرار گرفت': 'حمله کرد',
+    
+    # Fix country names
+    'ساکسونی-آنها': 'زاکسن-آنهالت',
+    'ساکسونی آنهالت': 'زاکسن-آنهالت',
+    'ساکسونی-آنهالت': 'زاکسن-آنهالت',
+    'آلمان باختری': 'آلمان غربی',
+    
+    # Fix people names
     'زلنزی': 'زلنسکی',
     'ویتکاف': 'ویتکوف',
-    'کوشنر': 'کوشنر',
-    'استیو ویتکاف': 'استیو ویتکوف',
-    'جرد کوشنر': 'جرد کوشنر',
+    'بوتن': 'پوتین',
 }
 
-CORRECT_TERMS = [
-    'انویدیا',
-    'هاگینگ فیس',
-    'راستگرای افراطی',
-    'نیروهای سپاه',
-    'جزیره خارگ',
-    'سنتکام',
-    'فدرال رزرو',
-    'بانک مرکزی اروپا',
-    'اوپک',
-    'زلنسکی',
-    'ویتکوف',
+# LLM artifact patterns to remove
+LLM_ARTIFACT_PATTERNS = [
+    r'ترجمه[‌\s]*:',
+    r'خلاصه[‌\s]*:',
+    r'نکات ترجمه',
+    r'ساختار طبیعی فارسی',
+    r'دلیل‌پردازی و نکات',
+    r'تحلیل ادعاها',
+    r'چرا بیانیه‌های',
+    r'نتیجه‌گیری',
+    r'###\s',
+    r'\|.*?\|',
+    r'Here\s+is',
+    r'Translation\s*:',
+    r'Note\s*:',
+    r'I\s+have\s+translated',
+    r'The\s+following',
+    r'-\s+\*\*.*?\*\*\s*:',
+    r'^\s*\d+\.\s',
+]
+
+# Repeated word pattern
+REPEATED_WORD_PATTERN = r'\b(\w+)(\s+\1\b)+'
+
+# Sentiment keywords
+BULLISH_GOLD = [
+    'rate cut', 'weak dollar', 'geopolitical tension', 'recession',
+    'inflation', 'safe haven', 'central bank buying', 'stimulus',
+    'dovish', 'crisis', 'war', 'uncertainty', 'conflict',
+]
+
+BEARISH_GOLD = [
+    'rate hike', 'strong dollar', 'risk appetite', 'higher yields',
+    'hawkish', 'economic growth', 'optimism', 'risk-on',
+]
+
+BULLISH_OIL = [
+    'opec cut', 'oil supply', 'crude inventory draw', 'geopolitical risk',
+    'middle east', 'sanctions', 'supply disruption', 'production cut',
+    'drone attack', 'pipeline', 'war', 'embargo', 'energy crisis',
+]
+
+BEARISH_OIL = [
+    'opec increase', 'oil demand', 'recession', 'slowdown', 'supply glut',
+    'inventory build', 'demand destruction', 'economic weakness',
+    'higher interest rates', 'strong dollar', 'oil price drop',
 ]
