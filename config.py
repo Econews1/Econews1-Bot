@@ -32,6 +32,14 @@ RSS_FEEDS = [
     # Additional financial
     "https://www.investing.com/rss/news_25.rss",
     "https://www.marketwatch.com/rss/topstories",
+    [
+    # ... (keep all existing) ...
+
+    # ----- VATICAN / CATHOLIC NEWS (statements that may affect global sentiment) -----
+    "https://www.vaticannews.va/en/rss.html",          # main Vatican news
+    "https://www.vaticannews.va/en/vatican-city.rss",  # Vatican City specific
+    "https://www.catholicnewsagency.com/rss",          # CNA (global Catholic news)
+]
 
     # ----- PERSIAN ECONOMIC RSS (where available) -----
     "https://www.eghtesadonline.com/fa/updates/13",
@@ -174,6 +182,16 @@ REQUIRED_ECONOMIC_TERMS = [
     # Market events
     'stock market', 'market crash', 'market volatility',
     'financial crisis', 'economic crisis',
+
+    # ----- NEW: Geopolitics, War, and Strategic Moves (affect prices) -----
+    'war', 'conflict', 'military', 'attack', 'strike',
+    'escalation', 'peace', 'negotiation', 'ceasefire',
+    'hormuz', 'strait', 'tanker', 'naval', 'warship',
+    'missile', 'drone', 'air strike', 'ground operation',
+    'intervention', 'sanctions relief', 'nuclear deal',
+    'diplomacy', 'embassy', 'consulate', 'evacuation',
+    'refugee', 'humanitarian crisis', 'hostage',
+    'pope', 'vatican', 'catholic', 'holy see',  # Vatican statements often carry weight
 ]
 
 # Terms that BLOCK news
@@ -230,7 +248,17 @@ PERSIAN_ECONOMIC_KEYWORDS = [
     'حواله', 'مبادله', 'صرافی', 'ذخایر ارزی', 'ترازنامه',
     'سیاست پولی', 'سیاست مالی', 'کسری بودجه', 'بدهی',
 ]
-
+[
+    # ... (keep existing) ...
+    # New geopolitical terms
+    'جنگ', 'درگیری', 'نظامی', 'حمله', 'عملیات',
+    'تنش', 'برجام', 'تحریم', 'مذاکره', 'آتش‌بس',
+    'هرمز', 'نفت‌کش', 'نیروی دریایی', 'موشک',
+    'پهپاد', 'گفتگو', 'صلح', 'روسیه', 'اوکراین',
+    'اسرائیل', 'فلسطین', 'غزه', 'لبنان', 'سوریه',
+    'یمن', 'عراق', 'افغانستان', 'ترکیه',
+    'پاپ', 'واتیکان', 'کاتولیک', 'بیانیه', 'سخنرانی',
+]
 # ================= GEOGRAPHIC NAMES =================
 GEO_NAMES = {
     # Countries
