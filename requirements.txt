@@ -4,3 +4,4 @@ matplotlib
 arabic-reshaper
 python-bidi
 numpy
+beautifulsoup4
