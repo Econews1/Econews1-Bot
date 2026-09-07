@@ -11,7 +11,47 @@ from datetime import datetime
 
 from config import *
 from translator import *
-from charts import send_price_charts
+from charts import send_price_charts, fetch_current_gold_oil, fetch_usd_toman_current
+
+
+# ================= PRICE HISTORY =================
+PRICE_HISTORY_FILE = "price_history.json"
+
+def update_price_history():
+    """Fetch current prices and append to history file, keeping last 48 entries."""
+    try:
+        gold, oil = fetch_current_gold_oil()
+        usd = fetch_usd_toman_current()
+        tether = usd  # USDT ≈ USD
+        now = datetime.now().isoformat()
+        entry = {
+            'timestamp': now,
+            'gold_usd': gold,
+            'oil_usd': oil,
+            'usd_toman': usd,
+            'tether_toman': tether
+        }
+        
+        # Load existing history
+        history = []
+        if os.path.exists(PRICE_HISTORY_FILE):
+            with open(PRICE_HISTORY_FILE, 'r') as f:
+                try:
+                    history = json.load(f)
+                except:
+                    history = []
+        
+        # Append and limit to last 48 entries (24h if collected every 30min)
+        history.append(entry)
+        if len(history) > 48:
+            history = history[-48:]
+        
+        with open(PRICE_HISTORY_FILE, 'w') as f:
+            json.dump(history, f, indent=2)
+        
+        print(f"  ✓ Price history updated: Gold ${gold:.2f}, Oil ${oil:.2f}, USD {usd:,.0f}")
+    except Exception as e:
+        print(f"  ⚠ Failed to update price history: {e}")
 
 
 # ================= SENTIMENT =================
@@ -244,6 +284,9 @@ def collect_news():
             
             if new_count >= MAX_POSTS_PER_RUN:
                 break
+    
+    # --- UPDATE PRICE HISTORY ---
+    update_price_history()
     
     # Save state
     save_queue(queue)
