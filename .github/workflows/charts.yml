@@ -1,0 +1,32 @@
+name: Daily Price Charts
+
+on:
+  schedule:
+    # 9 PM Tehran time = 17:30 UTC (Tehran is UTC+3:30)
+    - cron: '30 17 * * *'
+  workflow_dispatch: {}  # Allows manual trigger for testing
+
+jobs:
+  generate-charts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Generate and send charts
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+        run: |
+          python -c "from charts import send_price_charts; send_price_charts()"
