@@ -20,7 +20,35 @@ except Exception:
     HAS_YFINANCE = False
 
 from config import *
-from translator import to_persian_digits, fa, setup_persian_font
+
+# ---- FIX: correct RTL rendering of Persian text in matplotlib ----
+try:
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+    _HAS_RTL = True
+except ImportError:
+    _HAS_RTL = False
+    print("⚠ arabic-reshaper / python-bidi not installed — Persian text will render LTR")
+
+from translator import to_persian_digits, fa as _fa_base, setup_persian_font
+
+
+def fa(text):
+    """Run translator's fa(), then reshape + reorder for RTL display.
+
+    matplotlib draws characters left-to-right in logical order and has no
+    bidirectional text support, so Persian words like 'طلا' appear reversed
+    ('الط'). arabic_reshaper joins letters into their contextual forms and
+    python-bidi converts logical order to visual RTL order.
+    """
+    text = _fa_base(text)
+    if not _HAS_RTL:
+        return text
+    return '\n'.join(
+        get_display(arabic_reshaper.reshape(line))
+        for line in str(text).split('\n')
+    )
+
 
 if 'TELEGRAM_BOT_TOKEN' not in globals():
     TELEGRAM_BOT_TOKEN = ''
@@ -345,14 +373,16 @@ def generate_usd_chart(font_prop):
     _style_axis_professional(ax, font_prop)
     _add_change_badge(ax, usd_prices, font_prop)
 
+    # Whole label (word + digits + ' ت') goes through fa() so the
+    # 'ت' lands on the correct side of the number in RTL display.
     usd_price_text = to_persian_digits(f"{usd_prices[-1]:,.0f}")
-    ax.text(0.95, 0.95, fa('دلار') + '\n' + usd_price_text + ' ت',
+    ax.text(0.95, 0.95, fa('دلار\n' + usd_price_text + ' ت'),
             transform=ax.transAxes, color='white', fontsize=13,
             bbox=dict(boxstyle='round,pad=0.4', facecolor=COLORS['usd']['line'],
                       alpha=0.85, edgecolor='none'),
             ha='right', va='top', fontproperties=font_prop, linespacing=1.5)
     tether_price_text = to_persian_digits(f"{tether_prices[-1]:,.0f}")
-    ax.text(0.95, 0.82, fa('تتر') + '\n' + tether_price_text + ' ت',
+    ax.text(0.95, 0.82, fa('تتر\n' + tether_price_text + ' ت'),
             transform=ax.transAxes, color='white', fontsize=13,
             bbox=dict(boxstyle='round,pad=0.4', facecolor=COLORS['tether']['line'],
                       alpha=0.85, edgecolor='none'),
