@@ -1,12 +1,5 @@
 [
   {
-    "timestamp": "2026-09-23T10:15:36.924787",
-    "gold_usd": 4356.55,
-    "oil_usd": 99.35,
-    "usd_toman": 228000.0,
-    "tether_toman": 228000.0
-  },
-  {
     "timestamp": "2026-09-23T10:43:41.329336",
     "gold_usd": 4316.3,
     "oil_usd": 99.02,
@@ -332,6 +325,13 @@
     "timestamp": "2026-09-24T09:43:41.107312",
     "gold_usd": 4297.32,
     "oil_usd": 105.46,
+    "usd_toman": 228000.0,
+    "tether_toman": 228000.0
+  },
+  {
+    "timestamp": "2026-09-24T10:15:31.007973",
+    "gold_usd": 4255.0,
+    "oil_usd": 105.59,
     "usd_toman": 228000.0,
     "tether_toman": 228000.0
   }
